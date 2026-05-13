@@ -4336,9 +4336,9 @@ def build_codex_prompt(
     )
 
     return (
-        "你是通过 Telegram 连接到本机的 Codex。"
+        "你是通过 Whalemates Chat 连接到本机模型 provider 的 AI 助手。"
         "请优先使用中文，回复要简洁、可靠、可执行。"
-        "这个程序只是 Telegram chat 与 Codex CLI 的桥接器。"
+        "这个程序会把通讯软体里的消息路由到本机配置的模型或本机 CLI provider。"
         "不要把自己描述成某个工作目录里的助手。"
         f"{local_rule}"
         f"{media_rule}"
@@ -6667,7 +6667,7 @@ def stop_telegram_listener_service(config: Config) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Telegram to Codex bridge")
+    parser = argparse.ArgumentParser(description="Whalemates Chat local multi-model console")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     listen_parser = subparsers.add_parser("listen", help="Listen for Telegram messages")

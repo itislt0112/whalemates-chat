@@ -550,20 +550,41 @@ messageSettingsForm.addEventListener("click", async (event) => {
   const input = messageSettingsForm.querySelector(`[data-message-key="${replyKey}"]`);
   const value = input?.value ?? "";
   if (!messageTemplateHasChanges(replyKey, value)) {
+    saveReplyButton.textContent = "No changes";
     showMessageReplyFeedback(replyKey, "No changes to save.", "info", 3200);
+    window.setTimeout(() => {
+      if (saveReplyButton.textContent === "No changes") {
+        saveReplyButton.textContent = "Save";
+      }
+    }, 1600);
     updateMessageTemplateSaveButton(replyKey);
     return;
   }
   saveReplyButton.disabled = true;
+  saveReplyButton.dataset.saveState = "saving";
+  saveReplyButton.textContent = "Saving...";
   showMessageReplyFeedback(replyKey, "Saving...", "info", 10000);
   try {
     await persistSingleMessageTemplate(replyKey, value);
+    saveReplyButton.dataset.saveState = "saved";
+    saveReplyButton.textContent = "Saved";
     showMessageReplyFeedback(replyKey, "Saved.", "success", 5200);
+    window.setTimeout(() => {
+      if (saveReplyButton.dataset.saveState === "saved") {
+        saveReplyButton.textContent = "Save";
+        delete saveReplyButton.dataset.saveState;
+        updateMessageTemplateSaveButton(replyKey);
+      }
+    }, 5200);
   } catch (error) {
+    saveReplyButton.textContent = "Save";
+    delete saveReplyButton.dataset.saveState;
     showMessageReplyFeedback(replyKey, `Save failed: ${error.message}`, "error", 0);
     saveReplyButton.disabled = false;
   } finally {
-    updateMessageTemplateSaveButton(replyKey);
+    if (saveReplyButton.dataset.saveState !== "saved") {
+      updateMessageTemplateSaveButton(replyKey);
+    }
   }
 });
 messageSettingsForm.addEventListener("toggle", (event) => {

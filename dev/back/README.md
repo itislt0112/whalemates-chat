@@ -1,6 +1,6 @@
 # Back Structure
 
-`app.py` is a thin CLI entrypoint. `runtime.py` contains the current working Telegram listener manager, Console HTTP API, WebSocket broadcaster, settings persistence, Telegram API calls, and Codex CLI bridge.
+`app.py` is a thin CLI entrypoint. `runtime.py` contains the current working communication listener manager, Console HTTP API, WebSocket broadcaster, settings persistence, Telegram API calls, and model provider routing.
 
 `access_policy.py` is already split out because public / allowed / owner decisions are a stable boundary. `constants.py` keeps static values such as message copy, Telegram API base URL, and role capability tables.
 
@@ -23,7 +23,7 @@ back/
 ├── settings.py         # .env, dataclasses, settings load/save
 ├── telegram_api.py     # Telegram Bot API calls
 ├── telegram_listener.py # polling loop and bot worker manager
-├── codex_bridge.py     # Codex CLI invocation
+├── model_providers.py  # cloud models, local models, and CLI provider invocation
 ├── conversations.py    # conversations.json persistence and deletion
 ├── runtime_status.py   # runtime_status.json persistence
 ├── console_api.py    # HTTP routes

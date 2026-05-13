@@ -3287,7 +3287,7 @@
   align-items: end;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .message-reply-content-field {
@@ -3302,11 +3302,12 @@
 
 .message-reply-inline-save {
   align-self: end;
-  min-width: 82px;
+  min-width: 104px;
 }
 
 .message-reply-feedback {
   align-items: center;
+  align-self: end;
   border: 1px solid transparent;
   border-radius: 12px;
   color: var(--muted);
@@ -3315,10 +3316,10 @@
   font-weight: 540;
   gap: 6px;
   line-height: 1.35;
-  margin-top: -4px;
   min-height: 30px;
   padding: 6px 10px;
   width: fit-content;
+  white-space: nowrap;
 }
 
 .message-reply-feedback:not(:empty) {
@@ -4007,6 +4008,42 @@
 .message-command-action-button.primary:hover {
   background: var(--brand-purple-strong);
   border-color: var(--brand-purple-strong);
+}
+
+.message-command-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+  transform: none;
+}
+
+.message-command-action-button.primary:disabled,
+.message-command-action-button.primary:disabled:hover {
+  background: color-mix(in srgb, var(--muted) 16%, var(--surface-raised));
+  border-color: color-mix(in srgb, var(--muted) 22%, var(--line));
+  color: color-mix(in srgb, var(--muted) 72%, white);
+}
+
+.message-command-action-button.primary[data-save-state="saving"],
+.message-command-action-button.primary[data-save-state="saved"] {
+  cursor: default;
+}
+
+.message-command-action-button.primary[data-save-state="saving"],
+.message-command-action-button.primary[data-save-state="saving"]:hover {
+  background: color-mix(in srgb, var(--muted) 18%, var(--surface-raised));
+  border-color: color-mix(in srgb, var(--muted) 24%, var(--line));
+  color: var(--muted);
+}
+
+.message-command-action-button.primary[data-save-state="saved"] {
+  background: color-mix(in srgb, var(--success) 86%, white);
+  border-color: color-mix(in srgb, var(--success) 86%, white);
+  color: white;
+}
+
+.message-command-action-button.primary[data-save-state="saved"]:hover {
+  background: color-mix(in srgb, var(--success) 86%, white);
+  border-color: color-mix(in srgb, var(--success) 86%, white);
 }
 
 .message-command-action-button.subtle {

@@ -3254,20 +3254,18 @@ function createMessageTemplateRow(item, messages = {}) {
   textarea.rows = 1;
   textarea.value = messages[item.key] || TELEGRAM_MESSAGE_FALLBACKS[item.key] || "";
   field.append(label, textarea);
+  const feedback = document.createElement("div");
+  feedback.className = "message-reply-feedback";
+  feedback.dataset.messageReplyFeedback = item.key;
+  feedback.setAttribute("role", "status");
   const save = document.createElement("button");
   save.className = "message-command-action-button primary message-reply-inline-save";
   save.dataset.saveMessageReply = item.key;
   save.type = "button";
   save.textContent = "Save";
   save.disabled = !messageTemplateHasChanges(item.key, textarea.value);
-  editor.append(field, save);
+  editor.append(field, feedback, save);
   drawer.append(editor);
-
-  const feedback = document.createElement("div");
-  feedback.className = "message-reply-feedback";
-  feedback.dataset.messageReplyFeedback = item.key;
-  feedback.setAttribute("role", "status");
-  drawer.append(feedback);
 
   if (item.placeholders?.length) {
     const placeholders = document.createElement("div");
@@ -3340,20 +3338,18 @@ function createInlineMessageReplyEditor({ key, label, value, rows = 1 }) {
   textarea.rows = rows;
   textarea.value = value;
   field.append(fieldLabel, textarea);
+  const feedback = document.createElement("div");
+  feedback.className = "message-reply-feedback";
+  feedback.dataset.messageReplyFeedback = key;
+  feedback.setAttribute("role", "status");
   const save = document.createElement("button");
   save.className = "message-command-action-button primary message-reply-inline-save";
   save.dataset.saveMessageReply = key;
   save.type = "button";
   save.textContent = "Save";
   save.disabled = !messageTemplateHasChanges(key, value);
-  editor.append(field, save);
+  editor.append(field, feedback, save);
   card.append(editor);
-
-  const feedback = document.createElement("div");
-  feedback.className = "message-reply-feedback";
-  feedback.dataset.messageReplyFeedback = key;
-  feedback.setAttribute("role", "status");
-  card.append(feedback);
 
   const placeholders = messageReplyPlaceholders(key, value);
   if (placeholders.length) {
@@ -3604,6 +3600,8 @@ function updateMessageTemplateSaveButton(key) {
   const input = messageSettingsForm?.querySelector(`[data-message-key="${key}"]`);
   const button = messageSettingsForm?.querySelector(`[data-save-message-reply="${key}"]`);
   if (!input || !button) return;
+  if (button.dataset.saveState === "saving" || button.dataset.saveState === "saved") return;
+  button.textContent = "Save";
   button.disabled = !messageTemplateHasChanges(key, input.value);
 }
 

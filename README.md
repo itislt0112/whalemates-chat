@@ -1,14 +1,15 @@
 # Whalemates Chat
 
-本项目是一个本机运行的 Telegram / Codex 桥接工具。它提供一个本地 Chat Console，用来管理 Telegram service、多个 bot worker、Chat / Channel 访问权限，并把 Telegram 消息转给本机 Codex CLI 处理。
+Whalemates Chat 是一个本地运行的多模型聊天软体。它可以对接各类云端大模型和本地大模型，并连接 Telegram、Lark 等通讯软体，让用户从手机控制电脑、切换不同大模型对话、管理多 bot 与多渠道消息。
 
 当前核心模型：
 
 ```text
-Telegram Service
-  local listener manager
+Communication Services
+  Telegram / Lark / future channels
     bot worker: @bot_a
     bot worker: @bot_b
+      model routing: cloud models / local models / CLI providers
       access control: chats / channels / public policy
       conversations: local console history
 ```
@@ -43,12 +44,11 @@ Telegram Service
 
 新电脑推荐流程：
 
-1. 确保已安装 macOS 自带或独立安装的 `python3`。
-2. 如果要使用 Codex CLI 模式，确保已安装 Codex app 或可用 Codex CLI；如果使用 OpenAI / Claude / DeepSeek / Ollama API 模式，则在 Console 里配置对应 Provider。
+1. 确保已安装 Python 3.10 或更新版本。
 3. 解压或拷贝整个 `Whalemates Chat` 文件夹。
 4. 启动 launcher / app。
 5. 第一次启动 Console 时会自动创建 `.venv`，并安装 `dev/requirements.txt` 里的 Python 依赖。
-6. 在 Console 的 Settings 里添加 Telegram bot token，并配置 AI Provider / Model。
+6. 在 Console 的 Settings 里添加 Telegram / Lark 等通讯渠道配置，并配置 AI Provider / Model。
 
 通常不需要手动创建 `.venv`。如果你想手动安装或排查依赖，也可以运行：
 
@@ -58,7 +58,7 @@ source .venv/bin/activate
 pip install -r dev/requirements.txt
 ```
 
-`.env` 现在主要保存 Console 运行参数，以及 CLI Provider 的可选默认路径。首次启动 Console 时如果 `.env` 不存在，会自动从 `.env.example` 创建，并把 `CODEX_CWD` 设置为当前用户 home。Telegram bot token、bot enabled 状态、allowlist、public access、AI Provider / Model 等配置优先通过 Console 写入 `data/settings.json`。
+`.env` 现在主要保存 Console 运行参数，以及本地 provider 的可选默认路径。首次启动 Console 时如果 `.env` 不存在，会自动从 `.env.example` 创建，并把默认工作目录设置为当前用户 home。Telegram / Lark token、bot enabled 状态、allowlist、public access、AI Provider / Model 等配置优先通过 Console 写入 `data/settings.json`。
 
 如需手动提前创建本机环境配置，也可以运行：
 
@@ -349,6 +349,6 @@ WebSocket 事件：
 
 ## 边界
 
-Telegram 连接的是新的本机 Codex CLI 任务，不是当前 Codex 桌面聊天窗口本身。`CODEX_CWD` 只是启动 Codex CLI 时传给 `--cd` 的目录，不代表这个工具的身份或能力边界。
+通讯渠道连接的是本机运行的 Whalemates Chat 服务。它可以把消息路由给不同云端模型、本地模型或本机 CLI provider；对应 provider 的工作目录和权限由本机配置决定。
 
 `CODEX_SANDBOX=danger-full-access` 会让 Telegram 侧 Codex 更接近全局助手。这个能力更大，也更需要谨慎；涉及删除、发布、付款、密钥或大范围改动时，建议回到 Codex 桌面确认。
