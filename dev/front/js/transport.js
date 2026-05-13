@@ -138,6 +138,8 @@ function connectWebSocket() {
       const message = JSON.parse(event.data);
       if (message.type === "conversation.updated" && message.payload) {
         applyConversationPayload(message.payload);
+      } else if (message.type === "console.shutdown") {
+        closeConsoleWindow();
       }
     } catch (error) {
       updateStatus("error", `something wrong · ${formatNow()}`);

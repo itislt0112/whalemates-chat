@@ -25,6 +25,13 @@ run_setup_command() {
   "$@" >>"$LOG_DIR/install.log" 2>>"$LOG_DIR/install.err.log"
 }
 
+cleanup_previous_services() {
+  launchctl bootout "$USER_DOMAIN" "$LISTENER_PLIST" >/dev/null 2>&1 || true
+  launchctl bootout "$USER_DOMAIN" "$CONSOLE_PLIST" >/dev/null 2>&1 || true
+  pkill -f ' -m back listen' >/dev/null 2>&1 || true
+  pkill -f ' -m back chat --host 127.0.0.1 --port 8765' >/dev/null 2>&1 || true
+}
+
 ensure_bootstrap_python() {
   local candidate
   BOOTSTRAP_PYTHON=""
@@ -173,6 +180,7 @@ fi
 ensure_bootstrap_python
 write_service_scripts
 write_launch_agents
+cleanup_previous_services
 start_console_service
 wait_for_console
 printf '%s\n' "$CONSOLE_URL"

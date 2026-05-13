@@ -952,8 +952,19 @@ function closeConsoleWindow() {
           </main>
         </body>
       `;
+      notifyNativeConsoleClosed();
     }, 350);
   }, 250);
+}
+
+function notifyNativeConsoleClosed() {
+  try {
+    window.webkit?.messageHandlers?.whalematesNative?.postMessage({
+      type: "console.closed",
+    });
+  } catch (error) {
+    // Native close notification is optional; browser tabs keep the Bye page.
+  }
 }
 
 async function requestConsoleShutdown() {

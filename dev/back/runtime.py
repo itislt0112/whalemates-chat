@@ -6239,13 +6239,19 @@ class ChatConsoleHandler(BaseHTTPRequestHandler):
                     "payload": payload,
                 }
             )
+            self.broadcaster.broadcast_json(
+                {
+                    "type": "console.shutdown",
+                    "payload": {"message": "Console is shutting down."},
+                }
+            )
             self.send_json(
                 {"ok": True, "payload": payload},
                 headers={"Set-Cookie": CONSOLE_CLEAR_SESSION_COOKIE},
             )
 
             def shutdown_server() -> None:
-                time.sleep(0.2)
+                time.sleep(0.8)
                 self.server.shutdown()
 
             threading.Thread(target=shutdown_server, daemon=True).start()
