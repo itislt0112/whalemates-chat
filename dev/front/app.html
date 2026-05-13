@@ -488,6 +488,54 @@
         statusText.innerHTML = text;
       }
 
+      async function writeClipboardText(text) {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+        document.execCommand("copy");
+      }
+
+      async function readClipboardText() {
+        if (navigator.clipboard?.readText) {
+          return navigator.clipboard.readText();
+        }
+        return "";
+      }
+
+      document.querySelectorAll("#username, #password").forEach((input) => {
+        input.addEventListener("keydown", async (event) => {
+          if (!event.metaKey && !event.ctrlKey) return;
+          const key = event.key.toLowerCase();
+          if (!["a", "c", "v", "x"].includes(key)) return;
+
+          if (key === "a") {
+            event.preventDefault();
+            input.select();
+            return;
+          }
+
+          if (key === "c" || key === "x") {
+            const selected = input.value.slice(input.selectionStart || 0, input.selectionEnd || 0);
+            if (!selected) return;
+            event.preventDefault();
+            await writeClipboardText(selected);
+            if (key === "x") {
+              input.setRangeText("", input.selectionStart || 0, input.selectionEnd || 0, "start");
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+            return;
+          }
+
+          if (key === "v") {
+            event.preventDefault();
+            const text = await readClipboardText();
+            input.setRangeText(text, input.selectionStart || 0, input.selectionEnd || 0, "end");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        });
+      });
+
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         button.disabled = true;

@@ -38,6 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         return .terminateLater
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        NSApp.mainMenu = buildMainMenu()
+    }
+
     private func buildWindow() {
         let configuration = WKWebViewConfiguration()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
@@ -176,6 +180,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.contentView = contentView
         window.isReleasedWhenClosed = false
         window.delegate = self
+    }
+
+    private func buildMainMenu() -> NSMenu {
+        let mainMenu = NSMenu()
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(
+            withTitle: "Quit Whalemates Chat",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        appItem.submenu = appMenu
+        mainMenu.addItem(appItem)
+
+        let viewItem = NSMenuItem()
+        let viewMenu = NSMenu(title: "View")
+        let reloadItem = NSMenuItem(
+            title: "Reload",
+            action: #selector(reloadConsole(_:)),
+            keyEquivalent: "r"
+        )
+        reloadItem.target = self
+        viewMenu.addItem(reloadItem)
+        viewItem.submenu = viewMenu
+        mainMenu.addItem(viewItem)
+
+        return mainMenu
+    }
+
+    @objc private func reloadConsole(_ sender: Any?) {
+        showLoadingMessage(
+            title: "Refreshing Whalemates Chat",
+            subtitle: "Reloading the dashboard.",
+            status: "Checking local console..."
+        )
+        webView.reload()
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {

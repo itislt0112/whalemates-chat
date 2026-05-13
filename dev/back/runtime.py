@@ -1907,8 +1907,14 @@ def approve_request_target(bot_id: str, target_type: str, target_id: str, config
     return load_settings()
 
 
-def reject_request_target(bot_id: str, target_type: str, target_id: str) -> dict:
-    resolved_bot_id = resolve_telegram_bot_id(load_settings(), bot_id)
+def reject_request_target(
+    bot_id: str,
+    target_type: str,
+    target_id: str,
+    config: Config | None = None,
+) -> dict:
+    settings = load_settings()
+    resolved_bot_id = resolve_telegram_bot_id(settings, bot_id)
     target_type = "channel" if target_type == "channel" else "chat"
     target_id = str(target_id).strip()
     data = load_requests()
@@ -1918,6 +1924,14 @@ def reject_request_target(bot_id: str, target_type: str, target_id: str) -> dict
         raise ValueError("Unknown request target")
     data["targets"].pop(key, None)
     save_requests(data)
+    if config:
+        notify_bot_targets(
+            config,
+            settings,
+            resolved_bot_id,
+            [target_id],
+            telegram_message(settings, "apply_rejected_channel" if target_type == "channel" else "apply_rejected_user"),
+        )
     return record
 
 
@@ -3332,6 +3346,10 @@ def notify_console_update(config: Config, chat_id: str) -> None:
         )
     except Exception:
         return
+
+
+def notify_console_settings_update(config: Config) -> None:
+    notify_console_update(config, "")
 
 
 def telegram_api(
@@ -5281,6 +5299,7 @@ def handle_message(
             upsert_request_target(bot.bot_id, target, sender)
         send_message(config, chat_id, telegram_message(settings, "apply_success"), bot)
         notify_console_update(config, chat_id)
+        notify_console_settings_update(config)
         return
 
     if not allowed:
@@ -5978,7 +5997,7 @@ class ChatConsoleHandler(BaseHTTPRequestHandler):
             target_type = str(body.get("target_type") or body.get("type") or "chat").strip()
             target_id = str(body.get("target_id") or body.get("id") or "").strip()
             try:
-                reject_request_target(bot_id, target_type, target_id)
+                reject_request_target(bot_id, target_type, target_id, self.config)
             except ValueError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
                 return

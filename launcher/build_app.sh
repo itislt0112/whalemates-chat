@@ -63,9 +63,7 @@ run_setup_command() {
 }
 
 cleanup_previous_services() {
-  launchctl bootout "\$USER_DOMAIN" "\$LISTENER_PLIST" >/dev/null 2>&1 || true
   launchctl bootout "\$USER_DOMAIN" "\$CONSOLE_PLIST" >/dev/null 2>&1 || true
-  pkill -f ' -m back listen' >/dev/null 2>&1 || true
   pkill -f ' -m back chat --host 127.0.0.1 --port 8765' >/dev/null 2>&1 || true
 }
 

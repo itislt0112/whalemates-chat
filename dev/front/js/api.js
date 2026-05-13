@@ -693,6 +693,7 @@ async function rejectRequestTarget(target) {
   try {
     await rejectRequestTargetSilently(target);
     await refreshRequestsAndCloseIfEmpty();
+    render();
   } catch (error) {
     requestsFeedback.textContent = `Reject failed: ${error.message}`;
   }
@@ -724,6 +725,7 @@ async function rejectSelectedRequests() {
       await rejectRequestTargetSilently(target);
     }
     await refreshRequestsAndCloseIfEmpty();
+    render();
     showToast(`Successfully rejected ${selected.length}`, "success");
   } catch (error) {
     requestsFeedback.textContent = `Reject failed: ${error.message}`;

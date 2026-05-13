@@ -113,6 +113,9 @@ function applyConversationPayload(payload) {
   }
   updateStatus("connected");
   render();
+  if (!requestsModal.hidden) {
+    loadRequests();
+  }
 }
 
 function wsUrl() {
@@ -129,6 +132,7 @@ function connectWebSocket() {
   updateStatus("connecting");
 
   socket.addEventListener("open", () => {
+    stopDashboardRecoveryWatcher();
     updateStatus("connected");
     loadConversations();
   });
@@ -148,6 +152,7 @@ function connectWebSocket() {
 
   socket.addEventListener("close", () => {
     updateStatus("error");
+    startDashboardRecoveryWatcher();
     clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(connectWebSocket, 1200);
   });
@@ -156,6 +161,38 @@ function connectWebSocket() {
     updateStatus("error");
     socket.close();
   });
+}
+
+function startDashboardRecoveryWatcher() {
+  if (dashboardRecoveryTimer || dashboardReloading) return;
+  if (homeListenerText) {
+    homeListenerText.textContent = `Reconnecting · ${formatNow()}`;
+  }
+  dashboardRecoveryTimer = window.setInterval(checkDashboardRecovery, 1000);
+  window.setTimeout(checkDashboardRecovery, 250);
+}
+
+function stopDashboardRecoveryWatcher() {
+  if (!dashboardRecoveryTimer) return;
+  window.clearInterval(dashboardRecoveryTimer);
+  dashboardRecoveryTimer = null;
+}
+
+async function checkDashboardRecovery() {
+  if (dashboardReloading) return;
+  try {
+    const response = await fetch(`/api/auth/session?t=${Date.now()}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    dashboardReloading = true;
+    stopDashboardRecoveryWatcher();
+    window.location.reload();
+  } catch (error) {
+    if (homeListenerText) {
+      homeListenerText.textContent = `Reconnecting · ${formatNow()}`;
+    }
+  }
 }
 
 function setTheme(theme) {
