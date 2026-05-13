@@ -98,6 +98,30 @@ ws://127.0.0.1:8766/ws
 
 如果只想升级版本，通常不需要卸载；直接保留旧 `data/` 并覆盖代码即可。
 
+## 升级
+
+分发包内包含 `Whalemates Chat Updater.app`。
+
+推荐升级流程：
+
+1. 下载并打开新版 `Whalemates Chat.dmg`。
+2. 双击新版包里的 `Whalemates Chat Updater.app`。
+3. Updater 会优先寻找 `/Applications/Whalemates Chat`；如果找不到，会让你选择旧版 `Whalemates Chat` 文件夹。
+4. 确认后，它会停止旧服务、备份旧数据，然后覆盖新版代码。
+5. 升级完成后会自动打开新版 `Whalemates Chat.app`。
+
+升级时会保留：
+
+- `data/`
+- `.env`
+- `.venv`
+
+升级前会备份到：
+
+```text
+~/Whalemates Chat Backups/Whalemates Chat YYYYMMDD-HHMMSS
+```
+
 ## 配置 Telegram
 
 在 Console 里打开 Settings。
