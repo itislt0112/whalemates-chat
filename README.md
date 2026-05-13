@@ -87,6 +87,17 @@ Console 使用 WebSocket 实时更新消息和运行状态：
 ws://127.0.0.1:8766/ws
 ```
 
+## 卸载
+
+分发包内包含 `Whalemates Chat Uninstaller.app`。
+
+双击后有两个选项：
+
+- `Services Only`：停止本地 Console / Listener，移除 LaunchAgent、`~/.whalemates-*` helper scripts、临时日志和 `.venv`，但保留当前 `Whalemates Chat` 文件夹和本地 `data/`。
+- `Full Uninstall`：先执行 `Services Only`，然后把整个 `Whalemates Chat` 文件夹移动到废纸篓。
+
+如果只想升级版本，通常不需要卸载；直接保留旧 `data/` 并覆盖代码即可。
+
 ## 配置 Telegram
 
 在 Console 里打开 Settings。
