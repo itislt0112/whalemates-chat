@@ -4319,7 +4319,7 @@ function renderTelegramServiceManageModal() {
   const connection = telegramConnection();
   const listenerState = state.services?.listener?.state || "unknown";
   const listenerPid = state.services?.listener?.pid;
-  const listenerRunning = listenerIsRunning();
+  const listenerRunning = isListenerStateRunning(listenerState);
   const listenerDisplayState = listenerRunning ? listenerState : "stopped";
   const listenerDisplayPid = listenerRunning ? listenerPid : "";
   const hasEnabledModels = enabledModelOptions().length > 0;
@@ -4357,11 +4357,19 @@ function renderTelegramServiceManageModal() {
   }
 
   telegramServiceManageToggle.classList.remove("pending");
+  telegramServiceManageToggle.classList.toggle("pending", Boolean(telegramListenerPendingAction));
   telegramServiceManageToggle.classList.toggle("enabled", listenerRunning);
   telegramServiceManageToggle.setAttribute("aria-pressed", String(listenerRunning));
   telegramServiceManageToggle.querySelector(".target-toggle-label").textContent = listenerRunning ? "started" : "stopped";
+  const pendingLabel = telegramServiceManageToggle.querySelector(".target-toggle-pending-label");
+  if (pendingLabel) {
+    pendingLabel.textContent = telegramListenerPendingAction
+      ? (telegramListenerPendingAction === "start" ? "Starting..." : "Stopping...")
+      : "";
+  }
+  telegramServiceManageToggle.disabled = Boolean(telegramListenerPendingAction);
   telegramServerManageCard?.classList.toggle("is-stopped", listenerDisplayState === "stopped");
-  telegramServerManageCard?.classList.remove("is-starting");
+  telegramServerManageCard?.classList.toggle("is-starting", telegramListenerPendingAction === "start" && listenerDisplayState === "stopped");
   telegramManageListenerStatus.textContent = `${listenerDisplayPid ? `${listenerDisplayState} · ${listenerDisplayPid}` : listenerDisplayState} (${connection.mode || "polling"})`;
   telegramManageServiceModelFact.innerHTML = `
     <span>Provider (Model)</span>

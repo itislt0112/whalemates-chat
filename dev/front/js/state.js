@@ -219,6 +219,7 @@ let draftTelegramMessages = {};
 let messageCommandDraftActive = false;
 let draggedMessageCommandKey = "";
 let activeMessageCommandDrawerTabs = {};
+let telegramListenerPendingAction = "";
 let messageFeedbackTimer = null;
 let activeModelProvider = "openai";
 let activeModelMode = "";

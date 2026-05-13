@@ -25,13 +25,23 @@ async function refreshConversationsOnce() {
   state = await response.json();
   updateStatus(currentConnectionState());
   render();
+  if (!telegramServiceModal.hidden) {
+    renderTelegramServiceManageModal();
+  }
+  if (!larkServiceModal.hidden) {
+    renderLarkServiceManageModal();
+  }
   return state;
 }
 
-async function waitForListenerState(shouldRun, { attempts = 8, delayMs = 450 } = {}) {
+function telegramListenerActuallyRunning() {
+  return isListenerStateRunning(state.services?.listener?.state);
+}
+
+async function waitForListenerState(shouldRun, { attempts = 60, delayMs = 750 } = {}) {
   for (let index = 0; index < attempts; index += 1) {
     await refreshConversationsOnce();
-    if (listenerIsRunning() === shouldRun) return true;
+    if (telegramListenerActuallyRunning() === shouldRun) return true;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   return false;
@@ -540,7 +550,7 @@ messageSettingsForm.addEventListener("click", async (event) => {
   const input = messageSettingsForm.querySelector(`[data-message-key="${replyKey}"]`);
   const value = input?.value ?? "";
   if (!messageTemplateHasChanges(replyKey, value)) {
-    showMessageReplyFeedback(replyKey, "No changes to save.", "info", 1800);
+    showMessageReplyFeedback(replyKey, "No changes to save.", "info", 3200);
     updateMessageTemplateSaveButton(replyKey);
     return;
   }
@@ -548,8 +558,7 @@ messageSettingsForm.addEventListener("click", async (event) => {
   showMessageReplyFeedback(replyKey, "Saving...", "info", 10000);
   try {
     await persistSingleMessageTemplate(replyKey, value);
-    render();
-    showMessageReplyFeedback(replyKey, "Saved.", "success", 2600);
+    showMessageReplyFeedback(replyKey, "Saved.", "success", 5200);
   } catch (error) {
     showMessageReplyFeedback(replyKey, `Save failed: ${error.message}`, "error", 0);
     saveReplyButton.disabled = false;

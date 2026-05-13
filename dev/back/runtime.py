@@ -2567,14 +2567,25 @@ def load_console_auth() -> dict:
     return auth
 
 
-def console_session_value(auth: dict | None = None) -> str:
+def console_session_value(auth: dict | None = None, *, include_app_dir: bool = False) -> str:
     auth = auth or load_console_auth()
-    secret = f"{APP_DIR}:{auth.get('username', '')}:{auth.get('password', '')}"
+    parts = [str(auth.get("username", "")), str(auth.get("password", ""))]
+    if include_app_dir:
+        parts.insert(0, str(APP_DIR))
+    secret = ":".join(parts)
     return hmac.new(
         hashlib.sha256(secret.encode("utf-8")).digest(),
         b"whalemates-console-session",
         hashlib.sha256,
     ).hexdigest()
+
+
+def console_session_values(auth: dict | None = None) -> set[str]:
+    auth = auth or load_console_auth()
+    return {
+        console_session_value(auth),
+        console_session_value(auth, include_app_dir=True),
+    }
 
 
 def console_auth_public_state() -> dict:
@@ -2588,6 +2599,33 @@ def console_auth_public_state() -> dict:
     if first_login:
         payload["password"] = auth.get("password", "")
     return payload
+
+
+def python_environment_status() -> dict:
+    version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    ok = sys.version_info >= (3, 10)
+    return {
+        "id": "python",
+        "label": "Python 3.10+",
+        "required": True,
+        "ok": ok,
+        "status": f"Installed: {version}" if ok else f"Installed: {version}, but 3.10+ is required",
+        "hint": "Required for the local console server and dependency installer.",
+        "commands": [
+            "brew install python",
+            "python3 --version",
+        ],
+    }
+
+
+def setup_environment_status() -> dict:
+    python_status = python_environment_status()
+    return {
+        "ok": bool(python_status["ok"]),
+        "checks": [
+            python_status,
+        ],
+    }
 
 
 def mark_console_auth_used(auth: dict) -> None:
@@ -5470,7 +5508,13 @@ class ChatConsoleHandler(BaseHTTPRequestHandler):
         cookie = SimpleCookie()
         cookie.load(cookie_header)
         value = cookie.get(CONSOLE_SESSION_COOKIE)
-        return bool(value and hmac.compare_digest(value.value, console_session_value()))
+        return bool(
+            value
+            and any(
+                hmac.compare_digest(value.value, session_value)
+                for session_value in console_session_values()
+            )
+        )
 
     def send_login_redirect(self) -> None:
         self.send_response(HTTPStatus.FOUND.value)
@@ -5633,6 +5677,10 @@ class ChatConsoleHandler(BaseHTTPRequestHandler):
                 "authenticated": self.console_session_valid(),
                 "auth": console_auth_public_state(),
             })
+            return
+
+        if path == "/api/setup/status":
+            self.send_json(setup_environment_status())
             return
 
         if path in {"/", "/chat.html"} and not self.console_session_valid():

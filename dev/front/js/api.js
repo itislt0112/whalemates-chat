@@ -419,6 +419,10 @@ async function persistSingleMessageTemplate(key, value) {
       messages,
     }),
   });
+  if (response.status === 401) {
+    window.location.href = "./app.html";
+    throw new Error("Unauthorized");
+  }
   const result = await response.json();
   if (!response.ok || !result.ok) {
     throw new Error(result.error || `HTTP ${response.status}`);
@@ -754,28 +758,20 @@ async function setTelegramListenerState(action) {
   const listenerRunning = isListenerStateRunning(listenerState);
   if ((action === "start" && listenerRunning) || (action === "stop" && !listenerRunning)) return;
 
-  const pendingLabel = action === "start" ? "starting..." : "stopping...";
-  const optimisticEnabled = action === "start";
   const toggles = [telegramServiceToggle, telegramServiceManageToggle].filter(Boolean);
   const applyPendingToggleState = () => {
+    telegramListenerPendingAction = action;
     toggles.forEach((toggle) => {
       toggle.classList.add("pending");
-      toggle.classList.toggle("enabled", optimisticEnabled);
-      toggle.setAttribute("aria-pressed", String(optimisticEnabled));
-      const label = toggle.querySelector(".target-toggle-label");
-      if (label) label.textContent = pendingLabel;
+      toggle.disabled = true;
     });
-    if (action === "start") {
-      telegramServerManageCard?.classList.add("is-stopped", "is-starting");
-    } else {
-      telegramServerManageCard?.classList.remove("is-stopped", "is-starting");
+    render();
+    if (!telegramServiceModal.hidden) {
+      renderTelegramServiceManageModal();
     }
   };
   serviceConfigFeedback.textContent = action === "start" ? "Starting listener..." : "Stopping listener...";
   applyPendingToggleState();
-  toggles.forEach((toggle) => {
-    toggle.disabled = true;
-  });
   try {
     const response = await fetch("/api/services/telegram/listener", {
       method: "POST",
@@ -794,6 +790,9 @@ async function setTelegramListenerState(action) {
     serviceConfigFeedback.textContent = action === "start" ? "Starting Telegram listener..." : "Stopping Telegram listener...";
     updateStatus(currentConnectionState());
     render();
+    if (!telegramServiceModal.hidden) {
+      renderTelegramServiceManageModal();
+    }
     const reachedTargetState = await waitForListenerState(action === "start");
     serviceConfigFeedback.textContent = reachedTargetState
       ? (action === "start" ? "Telegram listener started." : "Telegram listener stopped.")
@@ -801,16 +800,25 @@ async function setTelegramListenerState(action) {
         ? "Telegram listener is still stopped. Please check service logs or try again."
         : "Telegram listener is still running. Please try stopping again.");
     render();
+    if (!telegramServiceModal.hidden) {
+      renderTelegramServiceManageModal();
+    }
   } catch (error) {
     serviceConfigFeedback.textContent = `Service update failed: ${error.message}`;
     render();
+    if (!telegramServiceModal.hidden) {
+      renderTelegramServiceManageModal();
+    }
   } finally {
+    telegramListenerPendingAction = "";
     toggles.forEach((toggle) => {
       toggle.classList.remove("pending");
       toggle.disabled = false;
     });
-    telegramServerManageCard?.classList.remove("is-starting");
     render();
+    if (!telegramServiceModal.hidden) {
+      renderTelegramServiceManageModal();
+    }
   }
 }
 

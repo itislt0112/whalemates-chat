@@ -38,7 +38,7 @@ ensure_bootstrap_python() {
       return 0
     fi
   done
-  echo "Python 3.10 or newer is required. Install Python 3.10+ and open Whalemates Chat again." >&2
+  echo "Python 3.10 or newer is required. Install it with: brew install python. Or download Python for macOS from https://www.python.org/downloads/macos/. Then open Whalemates Chat again." >&2
   return 1
 }
 
