@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Whalemates</title>
+    <link rel="stylesheet" href="./styles.css?v=20260513-footer-composer-align" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <header>
+          <div class="header-top">
+            <div class="brand-lockup">
+              <img class="brand-mark" src="./img/whalemates-whale-logo.png" alt="" aria-hidden="true" />
+              <div class="brand-copy">
+                <h1>AI Chat Console</h1>
+                <span>Powered by Whalemates Lab</span>
+              </div>
+            </div>
+            <div class="header-actions">
+              <button class="mobile-sidebar-toggle" id="mobileSidebarToggle" type="button" aria-label="Collapse top panel" title="Collapse top panel" aria-expanded="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m6 15 6-6 6 6"></path>
+                </svg>
+              </button>
+              <button class="theme-toggle-button" id="themeToggleButton" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">
+                <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 15.5A8.2 8.2 0 0 1 8.5 4a8.2 8.2 0 1 0 11.5 11.5Z"></path>
+                </svg>
+                <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <path d="M12 2v2"></path>
+                  <path d="M12 20v2"></path>
+                  <path d="m4.93 4.93 1.41 1.41"></path>
+                  <path d="m17.66 17.66 1.41 1.41"></path>
+                  <path d="M2 12h2"></path>
+                  <path d="M20 12h2"></path>
+                  <path d="m6.34 17.66-1.41 1.41"></path>
+                  <path d="m19.07 4.93-1.41 1.41"></path>
+                </svg>
+              </button>
+              <button class="settings-button exit-button" id="settingsButton" type="button" aria-label="Exit console" title="Exit console">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3v9"></path>
+                  <path d="M6.7 6.9a7.5 7.5 0 1 0 10.6 0"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </header>
+        <div class="home-nav">
+          <div class="home-service-tabs">
+            <div class="home-service-nav" id="homeServiceNav"></div>
+          </div>
+          <div class="home-filter-card">
+            <section class="home-context-section home-sidebar-card home-service-card">
+              <div class="home-context-head">
+                <div class="home-context-head-main">
+                  <span class="home-label">Service</span>
+                  <button class="home-section-action" id="listenerConfigureButton" type="button" aria-label="Manage Telegram service settings">manage</button>
+                </div>
+              </div>
+              <div class="home-sidebar-card-body">
+                <div class="home-listener-meta" id="homeListenerMeta">
+                  <span class="home-listener-dot" id="homeListenerDot"></span>
+                  <span id="homeListenerText">Loading · --:--:--</span>
+                </div>
+                <div class="home-model-line home-service-model-meta">
+                  <span class="home-service-model-copy">
+                    <span class="home-listener-dot" id="homeServiceModelDot"></span>
+                    <button class="home-model-link" id="homeServiceModelText" type="button">not set yet</button>
+                  </span>
+                  <button class="home-section-icon-action home-service-messages-action" id="homeServiceMessagesButton" type="button" aria-label="Open Telegram messages settings" title="Open messages settings">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M6 3.5h9.5L20 8v12.5H6z"></path>
+                      <path d="M15 3.5V8h5"></path>
+                      <path d="M9 12h7"></path>
+                      <path d="M9 15.5h7"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </section>
+            <section class="home-context-section home-sidebar-card home-bot-card">
+              <div class="home-context-head">
+                <div class="home-context-head-main">
+                  <span class="home-label">Bot</span>
+                  <button class="home-section-action" id="homeBotEditButton" type="button" aria-label="Manage bot workers">manage</button>
+                </div>
+              </div>
+              <div class="home-sidebar-card-body">
+                <div class="home-bot-dropdown home-bot-flat" id="homeBotDropdown">
+                  <button class="home-bot-trigger home-bot-trigger-filter" id="homeBotTrigger" type="button" aria-expanded="false" aria-haspopup="listbox">
+                    <span class="bot-state-dot" id="homeBotStatus" title="status"></span>
+                    <span class="home-bot-option-main">
+                      <span class="home-bot-value" id="homeBotValue">No bot configured</span>
+                    </span>
+                    <span class="home-bot-caret" aria-hidden="true"></span>
+                  </button>
+                  <div class="home-bot-menu" id="homeBotMenu" hidden>
+                    <input class="home-bot-search" id="homeBotSearch" autocomplete="off" placeholder="Search bot by name or ID" />
+                    <div class="home-bot-filter-tabs" id="homeBotFilterTabs" aria-label="Filter bots">
+                      <button class="home-bot-filter active" type="button" data-home-bot-kind="all">All</button>
+                      <button class="home-bot-filter" type="button" data-home-bot-kind="enabled">Enabled</button>
+                      <button class="home-bot-filter" type="button" data-home-bot-kind="disabled">Disabled</button>
+                      <button class="home-bot-filter" type="button" data-home-bot-kind="others">Others</button>
+                    </div>
+                    <div class="home-bot-options" id="homeBotOptions" role="listbox" aria-label="Bot List"></div>
+                  </div>
+                </div>
+                <div class="home-empty-bot-card" id="homeEmptyBotCard" hidden>
+                  <strong>Add Your First Bot</strong>
+                  <button class="target-action compact" id="homeEmptyBotAddButton" type="button">Add</button>
+                </div>
+              </div>
+            </section>
+          </div>
+          <section class="home-context-section home-sidebar-card home-model-setting-card" id="homeModelSettingCard">
+            <div class="home-context-head">
+              <div class="home-context-head-main">
+                <span class="home-label">Model Configuration</span>
+                <button class="home-section-action" id="homeModelSettingButton" type="button" aria-label="Open model settings">manage</button>
+              </div>
+            </div>
+            <div class="home-sidebar-card-body">
+              <div class="home-model-setting-list" id="homeModelSettingList"></div>
+            </div>
+          </section>
+        </div>
+      </aside>
+
+      <button class="shell-resizer" id="shellResizer" type="button" aria-label="Resize sidebar" title="Resize sidebar"></button>
+
+      <main>
+        <div class="topbar">
+          <div class="topbar-title conversation-topbar-title">
+            <div class="chat-header-main">
+              <div class="home-conversation-panel" id="homeConversationPanel" hidden>
+                <div class="home-conversation-toolbar">
+                  <div class="home-conversation-filters" id="homeConversationFilters" hidden>
+                    <button class="home-conversation-filter-trigger" id="homeConversationFilterTrigger" type="button" aria-expanded="false" aria-haspopup="listbox">
+                      <span class="conversation-trigger-copy">
+                        <span class="conversation-trigger-main">
+                          <span class="conversation-trigger-avatar" id="homeConversationAvatar" aria-hidden="true">
+                            <span id="homeConversationAvatarText">C</span>
+                          </span>
+                          <span class="conversation-trigger-lines">
+                            <span class="conversation-trigger-title-row">
+                              <span class="conversation-trigger-label" id="homeConversationFilterLabel">Select a conversation</span>
+                              <span class="status-pill conversation-trigger-status" id="homeConversationFilterStatus" hidden>public</span>
+                            </span>
+                            <span class="conversation-trigger-meta" id="homeConversationFilterMeta">Waiting for Telegram messages</span>
+                          </span>
+                        </span>
+                      </span>
+                      <span class="home-bot-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="home-conversation-filter-menu" id="homeConversationFilterMenu" role="listbox" hidden>
+                      <input class="home-conversation-search" id="homeConversationSearch" autocomplete="off" placeholder="Search conversations, IDs, status..." />
+                      <div class="home-conversation-filter-tabs">
+                        <button class="home-conversation-filter active" type="button" data-home-conversation-kind="all">
+                          <span>All</span>
+                        </button>
+                        <button class="home-conversation-filter" type="button" data-home-conversation-kind="chat">
+                          <span>Chats</span>
+                        </button>
+                        <button class="home-conversation-filter" type="button" data-home-conversation-kind="channel">
+                          <span>Channels</span>
+                        </button>
+                      </div>
+                      <div class="home-conversation-menu-options" id="homeConversationMenuOptions" role="listbox" aria-label="Conversation results"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="legacy-active-title" hidden>
+              <strong id="activeTitle">No conversation selected</strong>
+              <span id="activeMeta">Waiting for Telegram messages</span>
+            </div>
+          </div>
+          <div class="chat-header-actions" id="chatHeaderActions"></div>
+        </div>
+        <div class="chat-list" id="chatList" hidden></div>
+        <section class="messages" id="messages"></section>
+        <section class="manual-composer" id="manualComposer" aria-label="Send message as bot">
+          <div class="manual-composer-drop" id="manualComposerDrop">
+            <div class="manual-composer-hint" id="manualComposerHint">Select a conversation to send as bot.</div>
+            <div class="manual-composer-files" id="manualComposerFiles" hidden></div>
+            <div class="manual-composer-main">
+              <div class="manual-composer-input-wrap">
+                <textarea id="manualComposerText" rows="1" placeholder="Message as bot..." aria-label="Message text"></textarea>
+                <span class="manual-composer-key-hint">Press Shift &amp; Enter for Line Break</span>
+              </div>
+              <div class="manual-composer-actions">
+                <input id="manualComposerMediaInput" type="file" accept="image/*,video/*" multiple hidden />
+                <input id="manualComposerFileInput" type="file" multiple hidden />
+                <button class="manual-composer-tool icon-only" id="manualComposerMediaButton" type="button" aria-label="图片/视频" title="图片/视频">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+                    <circle cx="8.5" cy="10" r="1.5"></circle>
+                    <path d="m6 17 4.2-4.2a1.4 1.4 0 0 1 2 0L17 17"></path>
+                    <path d="m14.5 14.5 1.1-1.1a1.4 1.4 0 0 1 2 0L21 16.8"></path>
+                  </svg>
+                </button>
+                <button class="manual-composer-tool icon-only" id="manualComposerFileButton" type="button" aria-label="文件" title="文件">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+                    <path d="M14 3v5h5"></path>
+                    <path d="M9 13h6"></path>
+                    <path d="M9 17h4"></path>
+                  </svg>
+                </button>
+                <button class="manual-composer-tool icon-only" id="manualComposerVoiceButton" type="button" disabled aria-label="语音" title="Voice message is coming soon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <path d="M12 19v3"></path>
+                  </svg>
+                </button>
+                <button class="manual-composer-send" id="manualComposerSend" type="button">Send</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="settingsModal" hidden>
+      <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <header>
+          <h2 id="settingsTitle">Telegram Message Settings</h2>
+          <button class="settings-close" id="settingsClose" type="button" aria-label="Close settings">×</button>
+        </header>
+        <div class="settings-body">
+          <nav class="settings-nav" aria-label="Settings sections">
+            <div class="settings-nav-group">
+              <div class="settings-nav-title">Commands</div>
+              <button class="settings-tab active" data-message-nav="command-flows" data-settings-view="messages-telegram-command-flows" type="button">Command flows</button>
+            </div>
+            <div class="settings-nav-group">
+              <div class="settings-nav-title">Messages</div>
+              <button class="settings-tab" data-message-nav="status" data-settings-view="messages-telegram-status" type="button">Status &amp; Availability</button>
+              <button class="settings-tab" data-message-nav="access" data-settings-view="messages-telegram-access" type="button">Access Control</button>
+              <button class="settings-tab" data-message-nav="role" data-settings-view="messages-telegram-role" type="button">Role Changes</button>
+            </div>
+          </nav>
+          <section class="settings-panel">
+            <div id="settingsPlaceholder" hidden></div>
+            <div id="telegramSettings" hidden>
+              <div class="provider-title">
+                <span>Telegram Bots (Approvals)</span>
+                <span class="target-kind" id="accessBotCount">0 configured</span>
+              </div>
+              <div class="access-bot-select-wrap" id="accessBotSelectWrap">
+                <div class="settings-label">Bots List</div>
+                <div class="home-bot-dropdown" id="accessBotDropdown">
+                  <button class="home-bot-trigger" id="accessBotTrigger" type="button" aria-expanded="false" aria-haspopup="listbox">
+                    <span class="home-bot-value" id="accessBotValue">No bot configured</span>
+                    <span class="target-label" id="accessBotStatus">status</span>
+                    <span class="home-bot-caret" aria-hidden="true"></span>
+                  </button>
+                  <div class="home-bot-menu" id="accessBotMenu" hidden>
+                    <input class="home-bot-search" id="accessBotSearch" autocomplete="off" placeholder="Search bot by name or ID" />
+                    <div class="home-bot-options" id="accessBotOptions" role="listbox" aria-label="Bots List"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="selected-bot-panel" id="selectedBotPanel" hidden>
+                <div class="selected-bot-head">
+                  <div class="bot-list-name" id="selectedBotName"></div>
+                  <div class="bot-list-meta" id="selectedBotMeta"></div>
+                </div>
+                <div class="access-control-panel" id="accessControlPanel" hidden>
+                  <div class="target-tabs" aria-label="Telegram target type">
+                    <div class="target-tab-group">
+                      <button class="target-tab active" id="chatTargetTab" type="button">User</button>
+                      <button class="target-tab" id="channelTargetTab" type="button">Channel</button>
+                    </div>
+                    <div class="access-control-actions">
+                      <button class="target-action secondary compact" id="requestsButton" type="button">Requests</button>
+                      <label class="public-access-control" hidden>
+                        <span>Public</span>
+                        <button class="target-toggle" id="publicAccessToggle" type="button" aria-pressed="false">
+                          <span class="target-toggle-track" aria-hidden="true">
+                            <span class="target-toggle-thumb"></span>
+                          </span>
+                        </button>
+                      </label>
+                    </div>
+                  </div>
+                  <form class="target-form" id="allowedTargetForm">
+                    <input class="target-input" id="allowedTargetInput" name="target" inputmode="numeric" autocomplete="off" placeholder="Please enter user ID." />
+                    <button class="target-action" type="submit">Add</button>
+                  </form>
+                  <div class="target-list" id="allowedTargets"></div>
+                  <div class="settings-actions">
+                    <span class="settings-feedback" id="settingsFeedback"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="serviceConfigSettings" hidden>
+              <h3>Service Configuration</h3>
+              <div class="service-scope">
+                <div class="service-switcher">
+                  <div class="service-tabs" aria-label="Service configuration tabs">
+                    <button class="service-tab active" data-service-config-tab="telegram" type="button">
+                      <span class="service-tab-main">Telegram</span>
+                    </button>
+                    <button class="service-tab" data-service-config-tab="lark" type="button">
+                      <span class="service-tab-main">Lark</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="service-panel" id="telegramServicePanel">
+                  <div class="service-grid">
+                    <section class="service-card" id="telegramServerCard">
+                      <div class="service-section-title">
+                        <div>
+                          <h4>Telegram Server</h4>
+                          <p class="service-subcopy">One local listener manager runs all enabled bot workers.</p>
+                        </div>
+                        <button class="target-toggle" id="telegramServiceToggle" type="button" aria-pressed="false">
+                          <span class="target-toggle-track" aria-hidden="true">
+                            <span class="target-toggle-thumb"></span>
+                          </span>
+                          <span class="target-toggle-label">stopped</span>
+                        </button>
+                      </div>
+                      <div class="service-facts">
+                        <div class="service-fact"><span>Listener (Mode)</span><strong id="telegramListenerStatus">unknown</strong></div>
+                        <div class="service-fact" id="telegramServiceModelFact"><span>Provider (Model)</span><strong id="telegramServiceModel">Codex CLI</strong></div>
+                        <div class="service-fact" id="telegramServiceProfileFact"><span>Runtime Profile</span><strong>Default</strong></div>
+                      </div>
+                    </section>
+
+                    <section class="service-card" id="telegramBotWorkersCard">
+                      <div class="service-section-title">
+                        <h4>Bot Workers</h4>
+                        <span class="target-kind" id="telegramBotCount">0 configured</span>
+                      </div>
+                      <div class="settings-field">
+                        <div class="settings-input-row">
+                          <input class="settings-input" id="telegramTokenInput" type="password" autocomplete="off" placeholder="Paste Telegram bot token" />
+                          <button class="target-action" id="telegramValidateToken" type="button">Add Bot</button>
+                        </div>
+                      </div>
+                      <div class="bot-list" id="telegramBotsList"></div>
+                      <div class="settings-actions">
+                        <span class="settings-feedback" id="serviceConfigFeedback"></span>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+                <div class="service-panel" id="larkServicePanel" hidden>
+                  <div class="service-grid">
+                    <section class="service-card muted" id="larkServerCard">
+                      <div class="service-section-title">
+                        <div>
+                          <h4>Lark Server</h4>
+                          <p class="service-subcopy">Lark service is not configured yet.</p>
+                        </div>
+                        <span class="service-status disabled">disabled</span>
+                      </div>
+                      <div class="service-facts">
+                        <div class="service-fact"><span>Listener (Mode)</span><strong>not configured</strong></div>
+                        <div class="service-fact"><span>Provider (Model)</span><strong class="danger-text">AI Provider (Model) is not configured yet.</strong></div>
+                        <div class="service-fact"><span>Runtime Profile</span><strong>-</strong></div>
+                      </div>
+                    </section>
+
+                    <section class="service-card muted" id="larkBotWorkersCard">
+                      <div class="service-section-title">
+                        <h4>Bot Workers</h4>
+                        <span class="target-kind">0 configured</span>
+                      </div>
+                      <div class="settings-empty-block">Lark bot workers are not configured yet.</div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="messageSettings" hidden>
+              <form class="message-settings-form" id="messageSettingsForm">
+                <div class="message-settings-heading" id="messageSettingsHeading">Command flows</div>
+                <section class="settings-subsection" data-message-settings-panel="commands" role="tabpanel">
+                  <div class="message-command-toolbar">
+                    <span class="settings-feedback message-command-feedback" id="messageSettingsFeedback"></span>
+                    <div class="message-command-toolbar-actions">
+                      <button class="message-command-toolbar-button icon" id="refreshMessageCommandsButton" type="button" aria-label="Refresh commands from backend" title="Refresh commands from backend">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 12a9 9 0 0 1-15.5 6.2"></path>
+                          <path d="M3 12A9 9 0 0 1 18.5 5.8"></path>
+                          <path d="M18 2v4h4"></path>
+                          <path d="M6 22v-4H2"></path>
+                        </svg>
+                      </button>
+                      <button class="message-command-toolbar-button primary" id="addMessageCommandButton" type="button">Add</button>
+                      <button class="message-command-toolbar-button secondary" id="syncMessageCommandsButton" type="button">Sync</button>
+                    </div>
+                  </div>
+                  <div class="message-command-list" id="messageCommandList"></div>
+                </section>
+                <section class="settings-subsection message-template-workbench" data-message-settings-panel="messages" role="tabpanel">
+                  <div class="message-template-groups" id="messageTemplateGroups"></div>
+                </section>
+                <div class="settings-actions message-settings-feedback-row"></div>
+              </form>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop service-manage-backdrop" id="telegramServiceModal" hidden>
+      <section class="settings-modal service-manage-modal" role="dialog" aria-modal="true" aria-labelledby="telegramServiceModalTitle">
+        <header>
+          <h2 id="telegramServiceModalTitle">Telegram Service</h2>
+          <button class="settings-close" id="telegramServiceModalClose" type="button" aria-label="Close Telegram Service">×</button>
+        </header>
+        <div class="service-manage-body telegram-service-manage-body">
+          <div class="service-error-box" id="telegramServiceModelAlert" hidden></div>
+          <div class="service-section-title telegram-service-manage-head" id="telegramServerManageCard">
+            <span class="telegram-service-toggle-label">Start Telegram Service</span>
+            <button class="target-toggle" id="telegramServiceManageToggle" type="button" aria-pressed="false">
+              <span class="target-toggle-track" aria-hidden="true">
+                <span class="target-toggle-thumb"></span>
+              </span>
+              <span class="target-toggle-label">stopped</span>
+            </button>
+          </div>
+          <div class="service-facts telegram-service-manage-facts">
+            <div class="service-fact"><span>Listener (Mode)</span><strong id="telegramManageListenerStatus">unknown</strong></div>
+            <div class="service-fact" id="telegramManageServiceModelFact"><span>Provider (Model)</span><strong>Codex CLI</strong></div>
+            <div class="service-fact" id="telegramManageServiceProfileFact"><span>Runtime Profile</span><strong>Default</strong></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop service-manage-backdrop" id="larkServiceModal" hidden>
+      <section class="settings-modal service-manage-modal" role="dialog" aria-modal="true" aria-labelledby="larkServiceModalTitle">
+        <header>
+          <h2 id="larkServiceModalTitle">Lark Service</h2>
+          <button class="settings-close" id="larkServiceModalClose" type="button" aria-label="Close Lark Service">×</button>
+        </header>
+        <div class="service-manage-body telegram-service-manage-body">
+          <div class="service-error-box" id="larkServiceModelAlert"></div>
+          <div class="service-section-title telegram-service-manage-head">
+            <span class="telegram-service-toggle-label">Start Lark Service</span>
+            <button class="target-toggle" id="larkServiceManageToggle" type="button" aria-pressed="false" disabled>
+              <span class="target-toggle-track" aria-hidden="true">
+                <span class="target-toggle-thumb"></span>
+              </span>
+              <span class="target-toggle-label">disabled</span>
+            </button>
+          </div>
+          <div class="service-facts telegram-service-manage-facts">
+            <div class="service-fact"><span>Listener (Mode)</span><strong id="larkManageListenerStatus">not configured</strong></div>
+            <div class="service-fact" id="larkManageServiceModelFact"><span>Provider (Model)</span><strong>AI Provider (Model) is not configured yet.</strong></div>
+            <div class="service-fact" id="larkManageServiceProfileFact"><span>Runtime Profile</span><strong>-</strong></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop service-manage-backdrop" id="modelSettingsModal" hidden>
+      <section class="settings-modal model-settings-manage-modal" role="dialog" aria-modal="true" aria-labelledby="modelSettingsModalTitle">
+        <header>
+          <div class="modal-title-stack">
+            <h2 id="modelSettingsModalTitle">Model Configuration</h2>
+            <p>Configure AI provider connection and save settings locally.</p>
+          </div>
+          <button class="settings-close" id="modelSettingsModalClose" type="button" aria-label="Close Model Configuration">×</button>
+        </header>
+        <div class="service-manage-body model-settings-manage-body" id="modelSettingsModalBody"></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop service-manage-backdrop" id="telegramBotWorkersModal" hidden>
+      <section class="settings-modal bot-workers-manage-modal" role="dialog" aria-modal="true" aria-labelledby="telegramBotWorkersModalTitle">
+        <header>
+          <h2 id="telegramBotWorkersModalTitle">Bot Workers</h2>
+          <button class="settings-close" id="telegramBotWorkersModalClose" type="button" aria-label="Close Bot Workers">×</button>
+        </header>
+        <div class="service-manage-body bot-workers-manage-body">
+          <div class="settings-field">
+            <div class="settings-input-row">
+              <input class="settings-input" id="telegramManageTokenInput" type="password" autocomplete="off" placeholder="Paste Telegram bot token" />
+              <button class="target-action" id="telegramManageValidateToken" type="button">Add Bot</button>
+            </div>
+          </div>
+          <div class="settings-actions add-bot-feedback-row">
+            <span class="settings-feedback" id="telegramManageFeedback"></span>
+          </div>
+          <div class="bot-workers-count-row">
+            <span class="target-kind" id="telegramManageBotCount">0 configured</span>
+          </div>
+          <div class="bot-list" id="telegramManageBotsList"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop service-manage-backdrop" id="larkBotWorkersModal" hidden>
+      <section class="settings-modal bot-workers-manage-modal" role="dialog" aria-modal="true" aria-labelledby="larkBotWorkersModalTitle">
+        <header>
+          <h2 id="larkBotWorkersModalTitle">Bot Workers</h2>
+          <button class="settings-close" id="larkBotWorkersModalClose" type="button" aria-label="Close Lark Bot Workers">×</button>
+        </header>
+        <div class="service-manage-body bot-workers-manage-body">
+          <div class="settings-field">
+            <div class="settings-input-row">
+              <input class="settings-input" id="larkManageTokenInput" type="password" autocomplete="off" placeholder="Paste Lark bot credential" />
+              <button class="target-action" id="larkManageValidateToken" type="button">Add Bot</button>
+            </div>
+          </div>
+          <div class="settings-actions add-bot-feedback-row">
+            <span class="settings-feedback" id="larkManageFeedback"></span>
+          </div>
+          <div class="bot-workers-count-row">
+            <span class="target-kind" id="larkManageBotCount">0 configured</span>
+          </div>
+          <div class="bot-list" id="larkManageBotsList"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop service-manage-backdrop" id="telegramBotDetailModal" hidden>
+      <section class="settings-modal bot-detail-manage-modal" role="dialog" aria-modal="true" aria-labelledby="telegramBotDetailModalTitle">
+        <header>
+          <h2 id="telegramBotDetailModalTitle">Bot Settings</h2>
+          <button class="settings-close" id="telegramBotDetailModalClose" type="button" aria-label="Close Bot Settings">×</button>
+        </header>
+        <div class="service-manage-body bot-detail-manage-body">
+          <section class="service-card">
+            <div class="bot-list" id="telegramDetailBotList"></div>
+          </section>
+
+          <section class="service-card bot-detail-access-card" id="telegramDetailAccessCard">
+            <div class="service-section-title">
+              <div>
+                <h4>Approval List</h4>
+                <p class="service-subcopy">Manage this bot's allowed chats and channels.</p>
+              </div>
+              <button class="target-action secondary compact" id="telegramDetailRequestsButton" type="button">Requests</button>
+            </div>
+            <div class="access-control-panel active" id="telegramDetailAccessPanel">
+              <div class="target-tabs">
+                <div class="target-tab-group">
+                  <button class="target-tab active" id="telegramDetailChatTargetTab" type="button">User</button>
+                  <button class="target-tab" id="telegramDetailChannelTargetTab" type="button">Channel</button>
+                </div>
+              </div>
+              <form class="target-form" id="telegramDetailAllowedTargetForm">
+                <input class="settings-input" id="telegramDetailAllowedTargetInput" placeholder="Please enter user ID." />
+                <button class="target-action" type="submit">Add</button>
+              </form>
+              <div class="target-list" id="telegramDetailAllowedTargets"></div>
+              <div class="settings-actions">
+                <span class="settings-feedback" id="telegramDetailAccessFeedback"></span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop service-manage-backdrop" id="larkBotDetailModal" hidden>
+      <section class="settings-modal bot-detail-manage-modal" role="dialog" aria-modal="true" aria-labelledby="larkBotDetailModalTitle">
+        <header>
+          <h2 id="larkBotDetailModalTitle">Lark Bot Settings</h2>
+          <button class="settings-close" id="larkBotDetailModalClose" type="button" aria-label="Close Lark Bot Settings">×</button>
+        </header>
+        <div class="service-manage-body bot-detail-manage-body">
+          <section class="service-card">
+            <div class="bot-list" id="larkDetailBotList"></div>
+          </section>
+          <section class="service-card bot-detail-access-card">
+            <div class="service-section-title">
+              <div>
+                <h4>Approval List</h4>
+                <p class="service-subcopy">Lark approval management is not configured yet.</p>
+              </div>
+            </div>
+            <div class="settings-empty-block">Lark bot approvals are to be released.</div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="image-viewer-backdrop" id="imageViewer" hidden>
+      <section class="image-viewer" role="dialog" aria-modal="true" aria-labelledby="imageViewerTitle">
+        <header class="image-viewer-topbar">
+          <div class="image-viewer-title-block">
+            <div class="image-viewer-title" id="imageViewerTitle">Image</div>
+            <div class="image-viewer-meta" id="imageViewerMeta"></div>
+          </div>
+          <button class="image-viewer-icon-button" id="imageViewerClose" type="button" aria-label="Close image viewer">×</button>
+        </header>
+        <button class="image-viewer-nav previous" id="imageViewerPrevious" type="button" aria-label="Previous image">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m15 18-6-6 6-6"></path>
+          </svg>
+        </button>
+        <figure class="image-viewer-stage">
+          <img class="image-viewer-image" id="imageViewerImage" alt="" />
+          <video class="image-viewer-video" id="imageViewerVideo" controls playsinline hidden></video>
+        </figure>
+        <button class="image-viewer-nav next" id="imageViewerNext" type="button" aria-label="Next image">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m9 18 6-6-6-6"></path>
+          </svg>
+        </button>
+        <footer class="image-viewer-actions">
+          <div class="image-viewer-action-group" role="group" aria-label="Media actions">
+            <button class="image-viewer-action icon-only" id="imageViewerShowInChat" type="button" aria-label="Show in chat" title="Show in chat">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
+                <path d="m10 8-4 4 4 4"></path>
+                <path d="M7 12h8"></path>
+              </svg>
+            </button>
+            <a class="image-viewer-action icon-only" id="imageViewerSave" href="#" download aria-label="Download media" title="Download">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 3v12"></path>
+                <path d="m7 10 5 5 5-5"></path>
+                <path d="M5 21h14"></path>
+              </svg>
+            </a>
+            <button class="image-viewer-action icon-only danger" id="imageViewerDelete" type="button" aria-label="Delete media" title="Delete">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M3 6h18"></path>
+                <path d="M8 6V4h8v2"></path>
+                <path d="m19 6-1 15H6L5 6"></path>
+                <path d="M10 11v6"></path>
+                <path d="M14 11v6"></path>
+              </svg>
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
+
+    <div class="app-toast" id="appToast" hidden></div>
+    <div class="choice-backdrop" id="roleChoiceModal" hidden>
+      <section class="choice-modal" role="dialog" aria-modal="true" aria-labelledby="roleChoiceTitle">
+        <div class="choice-head">
+          <div class="choice-title" id="roleChoiceTitle">Change user role</div>
+          <button class="settings-close choice-close" id="roleChoiceClose" type="button" aria-label="Close role dialog">×</button>
+        </div>
+        <div class="choice-intro">
+          <div class="choice-copy" id="roleChoiceCopy" hidden></div>
+          <div class="choice-error-card" id="roleChoiceError" hidden></div>
+        </div>
+        <div class="choice-actions">
+          <button class="choice-action primary" id="roleChoiceConfirm" type="button">Confirm</button>
+          <button class="choice-action secondary" id="roleChoiceExtra" type="button" hidden>Extra</button>
+          <button class="choice-action secondary" id="roleChoiceCancel" type="button">Cancel</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="choice-backdrop" id="requestsModal" hidden>
+      <section class="choice-modal requests-modal" role="dialog" aria-modal="true" aria-labelledby="requestsTitle">
+        <div class="requests-head">
+          <div>
+            <div class="choice-title" id="requestsTitle">Requests</div>
+          </div>
+          <button class="settings-close" id="requestsClose" type="button" aria-label="Close requests">×</button>
+        </div>
+        <div class="requests-toolbar" id="requestsToolbar">
+          <div class="requests-filter-row">
+            <div class="target-tab-group">
+              <button class="target-tab active" data-requests-type="chat" type="button">Chat</button>
+              <button class="target-tab" data-requests-type="channel" type="button">Channel</button>
+            </div>
+            <input class="target-input requests-search-input" id="requestsSearch" autocomplete="off" placeholder="Search by name or ID" hidden />
+          </div>
+          <div class="requests-action-row">
+            <div class="requests-bulkbar" id="requestsBulkbar">
+              <input class="request-checkbox request-master-checkbox" id="requestsMasterCheckbox" type="checkbox" aria-label="Select all requests" />
+              <button class="request-select-toggle" id="requestsSelectAll" type="button">Select all</button>
+              <button class="target-action secondary compact" id="requestsClearSelection" type="button" hidden>Clear</button>
+              <div class="requests-bulk-actions">
+                <span class="requests-selected-count" id="requestsSelectedCount">0 selected</span>
+                <button class="request-bulk-approve" id="requestsAllowSelected" type="button">Approve</button>
+                <button class="request-bulk-reject" id="requestsRejectSelected" type="button">Reject</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="target-list requests-list" id="requestsList"></div>
+        <div class="settings-actions requests-footer">
+          <span class="settings-feedback" id="requestsFeedback"></span>
+          <button class="target-action secondary compact" id="requestsLoadMore" type="button" hidden>Load more</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="./js/state.js?v=20260513-footer-composer-align"></script>
+    <script src="./js/home.js?v=20260513-footer-composer-align"></script>
+    <script src="./js/messages.js?v=20260513-footer-composer-align"></script>
+    <script src="./js/settings.js?v=20260513-footer-composer-align"></script>
+    <script src="./js/modals.js?v=20260513-footer-composer-align"></script>
+    <script src="./js/api.js?v=20260513-footer-composer-align"></script>
+    <script src="./js/transport.js?v=20260513-footer-composer-align"></script>
+  </body>
+</html>
