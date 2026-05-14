@@ -1,6 +1,18 @@
 # Whalemates Chat
 
-Whalemates Chat 是一个本地运行的多模型聊天软体。它可以对接各类云端大模型和本地大模型，并连接 Telegram、Lark 等通讯软体，让用户从手机控制电脑、切换不同大模型对话、管理多 bot 与多渠道消息。
+## 项目介绍 / Overview
+
+Whalemates Chat 是一款本地运行的 AI Chat Console，用来把你的电脑、通讯软件和不同大模型连接在一起。它可以对接云端大模型、本地大模型，以及本机 CLI provider，并通过 Telegram、Lark 等通讯渠道收发消息。你可以用手机向 bot 发消息，让本机服务完成对话、模型切换、多 bot 管理、访问权限控制和多渠道消息路由。
+
+Whalemates Chat is a local AI Chat Console that connects your computer, messaging channels, and multiple AI model providers. It can work with cloud models, local models, and local CLI providers, while routing messages through channels such as Telegram and Lark. You can message a bot from your phone, talk to different models, manage multiple bots, control access, and keep conversations running through your own local machine.
+
+适合场景 / Good for:
+
+- 从手机远程和本机 AI 助手对话 / Chat with a local AI assistant from your phone.
+- 在云端模型、本地模型和 CLI provider 之间切换 / Switch between cloud models, local models, and CLI providers.
+- 同时管理多个 bot、用户、群组和频道 / Manage multiple bots, users, groups, and channels.
+- 把 Telegram、Lark 等通讯入口变成本机 AI 控制台 / Turn Telegram, Lark, and similar channels into a local AI control surface.
+- 保留本机运行和本地数据边界 / Keep the runtime and private data under local control.
 
 当前核心模型：
 
@@ -12,6 +24,32 @@ Communication Services
       model routing: cloud models / local models / CLI providers
       access control: chats / channels / public policy
       conversations: local console history
+```
+
+## Marketing Copy / 宣传话术
+
+### 中文
+
+Whalemates Chat 是一个本地 AI 聊天控制台。它把 Telegram、Lark 等通讯软件连接到你的电脑，让你可以直接从手机调用不同的大模型，包括云端模型、本地模型和本机 CLI provider。你可以为不同 bot 配置不同模型、管理用户和群组权限、保留本地对话记录，并用一个轻量的 Console 统一管理服务状态。
+
+它不是又一个普通聊天窗口，而是一个“手机到电脑”的 AI 控制层：人在外面也能给自己的本机 AI 助手发消息，需要时切换模型、接入多个 bot、处理多个频道。适合想把本地电脑能力、大模型能力和日常通讯工具连起来的人。
+
+推荐一句话：
+
+```text
+Whalemates Chat lets you control your local AI workspace from Telegram or Lark, with support for cloud models, local models, multiple bots, and channel-level access control.
+```
+
+### English
+
+Whalemates Chat is a local AI chat console that connects messaging apps like Telegram and Lark to your own computer. It lets you talk to cloud models, local models, and local CLI providers from your phone, while keeping bot configuration, access control, and conversation history managed through a local console.
+
+It is more than a chat UI. It is a control layer between your phone and your local AI workspace: send a message from Telegram or Lark, route it to the right model, manage multiple bots and channels, and keep the runtime under your control.
+
+Short pitch:
+
+```text
+Whalemates Chat turns Telegram and Lark into a local AI command center for cloud models, local models, multiple bots, and private channel-based workflows.
 ```
 
 ## 目录结构
