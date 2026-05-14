@@ -1,0 +1,469 @@
+/* Dark theme: Model Configuration needs its own contrast system. */
+[data-theme="dark"] .settings-panel h3 {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .provider-card {
+  background:
+    linear-gradient(180deg, rgba(49, 37, 89, 0.96), rgba(34, 23, 64, 0.96));
+  border-color: rgba(213, 200, 255, 0.2);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] #settingsPlaceholder .service-scope {
+  background:
+    linear-gradient(180deg, rgba(58, 45, 99, 0.9), rgba(36, 26, 68, 0.94));
+  border-color: rgba(213, 200, 255, 0.2);
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] .model-settings-manage-body #settingsPlaceholder .service-scope {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+[data-theme="dark"] #settingsPlaceholder .service-card.model-config-card {
+  background:
+    linear-gradient(180deg, rgba(38, 28, 70, 0.98), rgba(30, 21, 58, 0.98));
+  border-color: rgba(213, 200, 255, 0.2);
+}
+
+[data-theme="dark"] .model-settings-manage-body #settingsPlaceholder .service-card.model-config-card {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-theme="dark"] #settingsPlaceholder .service-card.model-config-card h4 {
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-scope {
+  background:
+    linear-gradient(180deg, rgba(45, 33, 84, 0.94), rgba(27, 18, 55, 0.96));
+  border-color: rgba(213, 200, 255, 0.18);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-tabs {
+  border-bottom-color: rgba(213, 200, 255, 0.16);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-tab {
+  color: rgba(248, 244, 255, 0.5);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-tab:hover,
+[data-theme="dark"] #serviceConfigSettings .service-tab.active {
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-tab.active::after {
+  background: var(--brand-yellow);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-card,
+[data-theme="dark"] #serviceConfigSettings .service-card.muted,
+[data-theme="dark"] #serviceConfigSettings .bot-list-item {
+  background: rgba(37, 26, 68, 0.92);
+  border-color: rgba(213, 200, 255, 0.18);
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-card.muted {
+  background:
+    linear-gradient(180deg, rgba(42, 31, 76, 0.96), rgba(31, 22, 58, 0.96));
+  border-color: rgba(213, 200, 255, 0.2);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-card.muted .service-subcopy {
+  color: rgba(248, 244, 255, 0.72);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-card.active,
+[data-theme="dark"] #serviceConfigSettings .bot-list-item.active {
+  background: rgba(48, 35, 87, 0.96);
+  border-color: rgba(255, 212, 90, 0.48);
+  box-shadow:
+    0 0 0 2px rgba(255, 212, 90, 0.16),
+    0 14px 32px rgba(0, 0, 0, 0.22);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-card h4,
+[data-theme="dark"] #serviceConfigSettings .bot-list-name {
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-subcopy,
+[data-theme="dark"] #serviceConfigSettings .bot-list-meta,
+[data-theme="dark"] #serviceConfigSettings .target-kind {
+  color: rgba(184, 173, 200, 0.86);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-fact {
+  border-top-color: rgba(213, 200, 255, 0.22);
+  color: rgba(184, 173, 200, 0.88);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-fact strong {
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .service-status,
+[data-theme="dark"] #serviceConfigSettings .service-status.disabled {
+  background: rgba(255, 212, 90, 0.12);
+  border-color: rgba(255, 212, 90, 0.28);
+  color: #ffe28a;
+}
+
+[data-theme="dark"] #serviceConfigSettings .settings-input,
+[data-theme="dark"] #serviceConfigSettings .model-route-trigger,
+[data-theme="dark"] #serviceConfigSettings .model-route-menu,
+[data-theme="dark"] #serviceConfigSettings .model-route-search {
+  background: rgba(19, 13, 40, 0.88);
+  border-color: rgba(213, 200, 255, 0.2);
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .settings-input::placeholder,
+[data-theme="dark"] #serviceConfigSettings .model-route-search::placeholder {
+  color: rgba(184, 173, 200, 0.58);
+}
+
+[data-theme="dark"] #serviceConfigSettings .settings-input:focus,
+[data-theme="dark"] #serviceConfigSettings .model-route-trigger:focus-visible,
+[data-theme="dark"] #serviceConfigSettings .model-route-dropdown.open .model-route-trigger,
+[data-theme="dark"] #serviceConfigSettings .model-route-search:focus {
+  border-color: rgba(255, 212, 90, 0.56);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  outline: 0;
+}
+
+[data-theme="dark"] .service-model-control.is-error .model-route-trigger {
+  background: rgba(255, 111, 111, 0.12);
+  border-color: rgba(255, 139, 139, 0.52);
+  box-shadow: 0 0 0 3px rgba(255, 111, 111, 0.14);
+  color: #ffb6b6;
+}
+
+[data-theme="dark"] .service-model-control.is-error .settings-empty-block {
+  background: rgba(255, 111, 111, 0.12);
+  border-color: rgba(255, 139, 139, 0.52);
+  box-shadow: 0 0 0 3px rgba(255, 111, 111, 0.14);
+  color: #ffb6b6;
+}
+
+[data-theme="dark"] .service-model-control.is-error .model-route-trigger:hover,
+[data-theme="dark"] .service-model-control.is-error .model-route-dropdown.open .model-route-trigger {
+  border-color: rgba(255, 139, 139, 0.72);
+  box-shadow: 0 0 0 3px rgba(255, 111, 111, 0.2);
+}
+
+[data-theme="dark"] #serviceConfigSettings .model-route-caret {
+  border-top-color: rgba(248, 244, 255, 0.72);
+}
+
+[data-theme="dark"] #serviceConfigSettings .model-route-menu {
+  background: linear-gradient(
+    180deg,
+    rgba(49, 34, 91, 0.98),
+    rgba(35, 23, 68, 0.98)
+  );
+  border-color: rgba(188, 158, 255, 0.36);
+  box-shadow:
+    0 24px 52px rgba(9, 4, 26, 0.42),
+    0 0 0 1px rgba(255, 212, 90, 0.06) inset;
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .model-route-search {
+  background: rgba(23, 14, 50, 0.78);
+  border-color: rgba(188, 158, 255, 0.24);
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .model-route-group-label {
+  color: rgba(184, 173, 200, 0.72);
+}
+
+[data-theme="dark"] #serviceConfigSettings .model-route-option {
+  color: var(--ink);
+}
+
+[data-theme="dark"] #serviceConfigSettings .model-route-option:hover,
+[data-theme="dark"] #serviceConfigSettings .model-route-option.active {
+  background: rgba(156, 134, 255, 0.18);
+  color: #fff9d7;
+}
+
+[data-theme="dark"] #serviceConfigSettings .model-route-option.active::before {
+  color: var(--brand-yellow);
+}
+
+[data-theme="dark"] .model-provider-tabs {
+  border-bottom: 1px solid rgba(213, 200, 255, 0.12);
+  gap: 24px;
+  margin-bottom: 2px;
+}
+
+[data-theme="dark"] .model-provider-tabs .service-tab {
+  color: rgba(248, 244, 255, 0.58);
+}
+
+[data-theme="dark"] .model-provider-tabs .service-tab:hover,
+[data-theme="dark"] .model-provider-tabs .service-tab.active {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .model-provider-tabs .service-tab.active::after {
+  background: var(--brand-yellow);
+}
+
+[data-theme="dark"] .model-provider-state {
+  color: rgba(184, 173, 200, 0.76);
+  font-weight: 650;
+}
+
+[data-theme="dark"] .model-provider-state.configured {
+  color: var(--brand-yellow);
+}
+
+[data-theme="dark"] .model-empty-error-box {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 111, 111, 0.13),
+      rgba(255, 111, 111, 0.08)
+    );
+  border-color: rgba(255, 139, 139, 0.42);
+  box-shadow:
+    0 18px 44px rgba(255, 111, 111, 0.08),
+    0 0 0 1px rgba(255, 139, 139, 0.08) inset;
+}
+
+[data-theme="dark"] .model-empty-error-box strong {
+  color: #ffb6b6;
+}
+
+[data-theme="dark"] .model-empty-error-box span {
+  color: rgba(255, 214, 214, 0.78);
+}
+
+[data-theme="dark"] .model-mode-drawer {
+  background: rgba(42, 33, 69, 0.84);
+  border-color: rgba(213, 200, 255, 0.18);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+[data-theme="dark"] .model-mode-drawer.active {
+  background: rgba(54, 42, 94, 0.92);
+  border-color: rgba(255, 212, 90, 0.38);
+}
+
+[data-theme="dark"] .model-mode-drawer-toggle {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .model-mode-drawer-toggle:hover,
+[data-theme="dark"] .model-mode-caret-button:hover {
+  background: rgba(156, 134, 255, 0.16);
+}
+
+[data-theme="dark"] .model-mode-drawer-title-row {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .model-mode-drawer-actions {
+  color: var(--muted);
+}
+
+[data-theme="dark"] .model-mode-caret-button {
+  background: rgba(19, 13, 40, 0.72);
+  border-color: rgba(213, 200, 255, 0.2);
+  color: rgba(248, 244, 255, 0.78);
+}
+
+[data-theme="dark"] .model-mode-caret-button:hover {
+  border-color: rgba(255, 212, 90, 0.46);
+  color: var(--brand-yellow);
+}
+
+[data-theme="dark"] .model-mode-drawer-caret {
+  border-top-color: rgba(248, 244, 255, 0.76);
+}
+
+[data-theme="dark"] .model-mode-drawer-body {
+  background: rgba(24, 17, 48, 0.74);
+  border-top-color: rgba(213, 200, 255, 0.16);
+}
+
+[data-theme="dark"] .settings-label,
+[data-theme="dark"] .model-selected-panel-title,
+[data-theme="dark"] .model-picker-toolbar-summary,
+[data-theme="dark"] .model-select-group-label {
+  color: rgba(248, 244, 255, 0.68);
+}
+
+[data-theme="dark"] .settings-field-note,
+[data-theme="dark"] .settings-field-note.testing,
+[data-theme="dark"] .model-picker-empty,
+[data-theme="dark"] .model-selected-empty {
+  color: rgba(184, 173, 200, 0.82);
+}
+
+[data-theme="dark"] .settings-field-note.warning {
+  color: #ffe28a;
+}
+
+[data-theme="dark"] .settings-field-note.error {
+  color: var(--danger);
+}
+
+[data-theme="dark"] .ollama-detect-button {
+  background: rgba(156, 134, 255, 0.12);
+  border-color: rgba(255, 212, 90, 0.34);
+  color: var(--brand-yellow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .ollama-detect-button:hover {
+  background: rgba(255, 212, 90, 0.16);
+  border-color: rgba(255, 212, 90, 0.52);
+  color: #fff1b8;
+  box-shadow: 0 10px 22px rgba(255, 212, 90, 0.12);
+}
+
+[data-theme="dark"] .model-mode-copy,
+[data-theme="dark"] .settings-empty-block,
+[data-theme="dark"] .settings-input-with-action,
+[data-theme="dark"] .settings-input-with-action.locked,
+[data-theme="dark"] .model-picker-trigger,
+[data-theme="dark"] .model-picker-menu,
+[data-theme="dark"] .model-selected-panel,
+[data-theme="dark"] .model-select-list {
+  background: rgba(19, 13, 40, 0.82);
+  border-color: rgba(213, 200, 255, 0.18);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .settings-input,
+[data-theme="dark"] .settings-input-with-action .settings-input,
+[data-theme="dark"] .settings-input-with-action.locked .settings-input,
+[data-theme="dark"] .model-picker-search {
+  background: rgba(19, 13, 40, 0.88);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .settings-input::placeholder,
+[data-theme="dark"] .model-picker-search::placeholder {
+  color: rgba(184, 173, 200, 0.62);
+}
+
+[data-theme="dark"] .settings-input-with-action:focus-within,
+[data-theme="dark"] .model-picker-trigger.open,
+[data-theme="dark"] .model-picker-trigger:focus-visible,
+[data-theme="dark"] .model-picker-search:focus {
+  border-color: rgba(255, 212, 90, 0.56);
+  outline-color: var(--focus-ring);
+}
+
+[data-theme="dark"] .settings-input-action,
+[data-theme="dark"] .settings-input-action.compact,
+[data-theme="dark"] .settings-input-action.subtle,
+[data-theme="dark"] .settings-input-action.light-action,
+[data-theme="dark"] .model-picker-bulk-action {
+  background: rgba(255, 212, 90, 0.13);
+  border-color: rgba(255, 212, 90, 0.32);
+  color: #ffe28a;
+}
+
+[data-theme="dark"] .settings-input-action:hover,
+[data-theme="dark"] .settings-input-action.compact:hover,
+[data-theme="dark"] .model-picker-bulk-action:hover {
+  background: rgba(255, 212, 90, 0.22);
+  border-color: rgba(255, 212, 90, 0.48);
+  color: #fff1b8;
+}
+
+[data-theme="dark"] .settings-input-action:disabled,
+[data-theme="dark"] .model-picker-trigger:disabled {
+  color: rgba(184, 173, 200, 0.5);
+  opacity: 1;
+}
+
+[data-theme="dark"] .settings-input-action.danger {
+  background: rgba(255, 133, 140, 0.12);
+  border-color: rgba(255, 133, 140, 0.28);
+  color: var(--danger);
+}
+
+[data-theme="dark"] .settings-input-action.danger:hover {
+  background: rgba(255, 133, 140, 0.2);
+  border-color: rgba(255, 133, 140, 0.44);
+}
+
+[data-theme="dark"] .model-select-group + .model-select-group,
+[data-theme="dark"] .model-select-item {
+  border-color: rgba(213, 200, 255, 0.13);
+}
+
+[data-theme="dark"] .model-select-group-label {
+  background: rgba(45, 33, 84, 0.78);
+}
+
+[data-theme="dark"] .model-select-item:hover,
+[data-theme="dark"] .model-select-item.active {
+  background: rgba(156, 134, 255, 0.16);
+}
+
+[data-theme="dark"] .model-select-checkbox {
+  accent-color: var(--brand-yellow);
+}
+
+[data-theme="dark"] .model-selected-chip {
+  background: rgba(115, 211, 255, 0.12);
+  border-color: rgba(115, 211, 255, 0.28);
+  color: rgba(248, 244, 255, 0.9);
+}
+
+[data-theme="dark"] .model-selected-chip.invalid {
+  background: rgba(255, 133, 140, 0.12);
+  border-color: rgba(255, 133, 140, 0.34);
+  color: var(--danger);
+}
+
+[data-theme="dark"] .model-draft-banner,
+[data-theme="dark"] .ollama-help-card,
+[data-theme="dark"] .ollama-help-card.warning {
+  background: rgba(255, 212, 90, 0.1);
+  border-color: rgba(255, 212, 90, 0.24);
+  color: rgba(255, 241, 184, 0.92);
+}
+
+[data-theme="dark"] .model-draft-banner strong,
+[data-theme="dark"] .ollama-help-card strong,
+[data-theme="dark"] .ollama-help-card span,
+[data-theme="dark"] .ollama-command-hint,
+[data-theme="dark"] .ollama-command-hint code {
+  color: rgba(255, 241, 184, 0.94);
+}
+
+[data-theme="dark"] .ollama-command-hint code {
+  background: rgba(19, 13, 40, 0.62);
+  border-color: rgba(255, 212, 90, 0.22);
+}
+
+[data-theme="dark"] .model-run-banner,
+[data-theme="dark"] .settings-feedback[data-tone="error"] {
+  background: rgba(255, 133, 140, 0.12);
+  border-color: rgba(255, 133, 140, 0.28);
+  color: var(--danger);
+}
+
+[data-theme="dark"] .settings-feedback[data-tone="success"],
+[data-theme="dark"] .cli-status-card.success {
+  background: rgba(115, 211, 255, 0.12);
+  border-color: rgba(115, 211, 255, 0.26);
+  color: var(--whale-blue);
+}

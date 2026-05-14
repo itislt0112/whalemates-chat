@@ -8,6 +8,7 @@ async function loadConversations() {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state = await response.json();
+    bootstrapGroupChannelSeenTargets();
     updateStatus(currentConnectionState());
     render();
   } catch (error) {
@@ -32,6 +33,14 @@ async function refreshConversationsOnce() {
     renderLarkServiceManageModal();
   }
   return state;
+}
+
+function startConversationRefreshFallback() {
+  if (conversationRefreshTimer) return;
+  conversationRefreshTimer = window.setInterval(() => {
+    if (document.hidden || isLoading || dashboardReloading) return;
+    refreshConversationsOnce().catch(() => {});
+  }, 5000);
 }
 
 function telegramListenerActuallyRunning() {
@@ -102,8 +111,21 @@ function initModalOpenObserver() {
   });
 }
 
-function applyConversationPayload(payload) {
+function chatMatchesUpdate(chat, updatedChatId) {
+  if (!chat || !updatedChatId) return false;
+  const value = String(updatedChatId);
+  return [chat.id, chat.target_id, chat.uid].some((item) => String(item || "") === value);
+}
+
+function applyConversationPayload(payload, updatedChatId = "") {
+  const activeChatBeforeUpdate = state.chats.find((chat) => chat.id === activeChatId);
+  const activeChatWasUpdated = chatMatchesUpdate(activeChatBeforeUpdate, updatedChatId);
+  const shouldStickToLatest = activeChatWasUpdated && isNearBottom();
+  const detailBotId = activeServiceBotId || activeAccessBotId;
+  const previousDetailUserRequestCount = requestPendingCountByType("chat", detailBotId);
   state = payload;
+  const nextDetailUserRequestCount = requestPendingCountByType("chat", detailBotId);
+  const detailUserRequestsChanged = previousDetailUserRequestCount !== nextDetailUserRequestCount;
   if (settingsModal.hidden) {
     const bot = activeAccessBot();
     draftAllowedTargets = {
@@ -111,8 +133,17 @@ function applyConversationPayload(payload) {
       channel: normalizeTargetRecords(bot.allowed?.channels || [], "channel"),
     };
   }
+  if (shouldStickToLatest) {
+    forceScrollMessagesToBottom = true;
+  }
   updateStatus("connected");
   render();
+  if (!telegramBotDetailModal.hidden) {
+    if (telegramDetailFocus === "approval" && telegramDetailListTab === "requests" && detailUserRequestsChanged) {
+      telegramDetailRequestsLoadedFor = "";
+    }
+    renderTelegramBotDetailModal();
+  }
   if (!requestsModal.hidden) {
     loadRequests();
   }
@@ -135,13 +166,14 @@ function connectWebSocket() {
     stopDashboardRecoveryWatcher();
     updateStatus("connected");
     loadConversations();
+    startConversationRefreshFallback();
   });
 
   socket.addEventListener("message", (event) => {
     try {
       const message = JSON.parse(event.data);
       if (message.type === "conversation.updated" && message.payload) {
-        applyConversationPayload(message.payload);
+        applyConversationPayload(message.payload, message.chat_id || "");
       } else if (message.type === "console.shutdown") {
         closeConsoleWindow();
       }
@@ -483,9 +515,26 @@ telegramDetailAllowedTargetForm.addEventListener("submit", (event) => {
     listEl: telegramDetailAllowedTargets,
   });
 });
-telegramDetailChatTargetTab.addEventListener("click", () => switchTargetType("chat"));
+telegramDetailChatTargetTab.addEventListener("click", () => {
+  if (telegramDetailFocus === "approval") {
+    telegramDetailListTab = "approvals";
+    activeTargetType = "chat";
+    renderTelegramBotDetailModal();
+    return;
+  }
+  switchTargetType("chat");
+});
+telegramDetailRequestsTargetTab.addEventListener("click", () => {
+  telegramDetailListTab = "requests";
+  activeTargetType = "chat";
+  renderTelegramBotDetailModal();
+  loadTelegramDetailUserRequests();
+});
+telegramDetailGroupTargetTab.addEventListener("click", () => {
+  switchTargetType("group");
+});
 telegramDetailChannelTargetTab.addEventListener("click", () => switchTargetType("channel"));
-telegramDetailRequestsButton.addEventListener("click", () => openRequestsModal());
+telegramDetailRequestsButton?.addEventListener("click", () => openRequestsModal());
 listenerConfigureButton.addEventListener("click", () => {
   if (activeHomeServiceId === "lark") {
     openLarkServiceModal();
@@ -770,19 +819,35 @@ homeBotFilterTabs.forEach((tab) => {
     renderChatList();
   });
 });
-homeConversationFilterTrigger.addEventListener("click", () => {
-  homeConversationFilterMenuOpen = !homeConversationFilterMenuOpen;
-  render();
+function toggleHomeConversationFilterMenu() {
+  const willOpen = !homeConversationFilterMenuOpen;
+  homeConversationFilterMenuOpen = willOpen;
+  if (willOpen) {
+    activeHomeConversationKind = latestHomeConversationKind(
+      state.chats.filter((chat) => chatBelongsToBot(chat, activeHomeBotId)),
+    );
+  }
+  renderHomeConversationDropdown();
+}
+
+homeConversationFilterTrigger.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleHomeConversationFilterMenu();
+});
+homeConversationFilters.addEventListener("click", (event) => {
+  if (homeConversationFilterMenu.contains(event.target)) return;
+  if (homeConversationFilterTrigger.contains(event.target)) return;
+  toggleHomeConversationFilterMenu();
 });
 homeConversationFilterTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
-    activeHomeConversationKind = tab.dataset.homeConversationKind || "all";
-    render();
+    activeHomeConversationKind = tab.dataset.homeConversationKind || "chat";
+    renderHomeConversationDropdown();
   });
 });
 function updateHomeConversationSearch() {
   homeConversationFilter = homeConversationSearch.value;
-  render();
+  renderHomeConversationDropdown();
 }
 
 homeConversationSearch.addEventListener("input", updateHomeConversationSearch);
@@ -797,7 +862,7 @@ document.addEventListener("click", (event) => {
     homeConversationFilterMenuOpen = false;
     homeConversationFilter = "";
     homeConversationSearch.value = "";
-    renderChatList();
+    renderHomeConversationDropdown();
   }
 });
 homeBotDropdown.addEventListener("keydown", (event) => {
@@ -855,6 +920,7 @@ allowedTargetForm.addEventListener("submit", (event) => {
   addAllowedTarget(allowedTargetInput.value);
 });
 chatTargetTab.addEventListener("click", () => switchTargetType("chat"));
+groupTargetTab.addEventListener("click", () => switchTargetType("group"));
 channelTargetTab.addEventListener("click", () => switchTargetType("channel"));
 publicAccessToggle.addEventListener("click", togglePublicAccess);
 requestsButton.addEventListener("click", () => {
@@ -867,12 +933,6 @@ requestsModal.addEventListener("click", (event) => {
   if (event.target === requestsModal) {
     requestsModal.hidden = true;
   }
-});
-requestTypeTabs.forEach((tab) => {
-  tab.addEventListener("click", () => {
-    activeRequestsType = tab.dataset.requestsType || "chat";
-    loadRequests();
-  });
 });
 requestsSearch.addEventListener("input", () => {
   requestsQuery = requestsSearch.value;

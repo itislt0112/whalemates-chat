@@ -42,6 +42,7 @@ try:
         HELP_TEXT,
         TELEGRAM_API_BASE,
     )
+    from . import approval_service, conversation_store, request_store, runtime_status_store, settings_store, telegram_client, telegram_listener
     from .paths import APP_DIR, LAUNCH_AGENT_DIR, REQUESTS_FILE, RUNTIME_STATUS_FILE, SETTINGS_FILE, WEB_DIR
 except ImportError:  # Allow running this file directly during local debugging.
     from access_policy import (  # type: ignore[no-redef]
@@ -56,6 +57,13 @@ except ImportError:  # Allow running this file directly during local debugging.
         HELP_TEXT,
         TELEGRAM_API_BASE,
     )
+    import approval_service  # type: ignore[no-redef]
+    import conversation_store  # type: ignore[no-redef]
+    import request_store  # type: ignore[no-redef]
+    import runtime_status_store  # type: ignore[no-redef]
+    import settings_store  # type: ignore[no-redef]
+    import telegram_client  # type: ignore[no-redef]
+    import telegram_listener  # type: ignore[no-redef]
     from paths import APP_DIR, LAUNCH_AGENT_DIR, REQUESTS_FILE, RUNTIME_STATUS_FILE, SETTINGS_FILE, WEB_DIR  # type: ignore[no-redef]
 
 RUNTIME_STATUS_LOCK = threading.Lock()
@@ -193,9 +201,17 @@ def ensure_env_file() -> None:
     env_file.write_text("\n".join(next_lines).rstrip() + "\n", encoding="utf-8")
 
 
+def clear_invalid_tls_certificate_env() -> None:
+    for key in ("REQUESTS_CA_BUNDLE", "SSL_CERT_FILE", "CURL_CA_BUNDLE"):
+        value = os.getenv(key, "").strip()
+        if value and not Path(value).expanduser().exists():
+            os.environ.pop(key, None)
+
+
 def load_config() -> Config:
     ensure_env_file()
     load_dotenv(APP_DIR / ".env")
+    clear_invalid_tls_certificate_env()
 
     settings = load_settings()
     bot_token = first_telegram_bot_token(settings) or os.getenv("BOT_TOKEN", "").strip()
@@ -337,6 +353,8 @@ TELEGRAM_MESSAGE_DEFAULTS = {
     "approval_removed": "您和这个Bot聊天的权限被移除了，后续可以输入指令 {apply_command} 重新申请",
     "role_upgrade_user": "你的权限已从 {from_role} 升级为 {to_role}。",
     "role_downgrade_user": "你的权限已从 {from_role} 调整为 {to_role}。",
+    "role_upgrade_channel": "这个频道权限已从 {from_role} 升级为 {to_role}。",
+    "role_downgrade_channel": "这个频道权限已从 {from_role} 调整为 {to_role}。",
     "assistant_online": ASSISTANT_ONLINE_TEXT,
     "assistant_offline": ASSISTANT_OFFLINE_TEXT,
     "help_text": (
@@ -419,14 +437,6 @@ def normalize_telegram_command(value: object, default: str) -> str:
 def telegram_commands(settings: dict) -> dict:
     return {
         item["key"]: item["command"]
-        for item in telegram_command_items(settings)
-        if item.get("built_in")
-    }
-
-
-def telegram_command_descriptions(settings: dict) -> dict:
-    return {
-        item["key"]: str(item.get("description") or "").strip()
         for item in telegram_command_items(settings)
         if item.get("built_in")
     }
@@ -591,17 +601,89 @@ def telegram_command_sync_snapshot(settings: dict) -> str:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def telegram_command_sync_signature(settings: dict) -> str:
-    raw = telegram_command_sync_snapshot(settings)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
 def telegram_command(settings: dict, key: str) -> str:
     return telegram_commands(settings).get(key, "")
 
 
 def command_matches(text: str, command: str) -> bool:
     return bool(command) and text.strip() == command
+
+
+def bot_username(bot: BotRuntime | None = None) -> str:
+    return str(bot.username if bot else "").strip().lstrip("@")
+
+
+def text_mentions_bot(text: str, bot: BotRuntime | None = None) -> bool:
+    username = bot_username(bot)
+    return bool(username and f"@{username.lower()}" in str(text or "").lower())
+
+
+def telegram_entity_text(text: str, entity: dict) -> str:
+    try:
+        offset = int(entity.get("offset") or 0)
+        length = int(entity.get("length") or 0)
+    except (TypeError, ValueError):
+        return ""
+    if offset < 0 or length <= 0:
+        return ""
+    return str(text or "")[offset:offset + length]
+
+
+def message_mentions_bot(message: dict, bot: BotRuntime | None = None) -> bool:
+    text = message_text(message)
+    if text_mentions_bot(text, bot):
+        return True
+
+    bot_id = str(bot.bot_id if bot else "").strip()
+    username = bot_username(bot).lower()
+    entities = list(message.get("entities") or []) + list(message.get("caption_entities") or [])
+    for entity in entities:
+        if not isinstance(entity, dict):
+            continue
+        entity_type = str(entity.get("type") or "").strip()
+        if entity_type == "mention":
+            mention_text = telegram_entity_text(text, entity).strip().lower()
+            if username and mention_text == f"@{username}":
+                return True
+        if entity_type == "text_mention":
+            user = entity.get("user") or {}
+            if bot_id and str(user.get("id") or "").strip() == bot_id:
+                return True
+
+    reply_from = (message.get("reply_to_message") or {}).get("from") or {}
+    if bot_id and str(reply_from.get("id") or "").strip() == bot_id:
+        return True
+
+    return False
+
+
+def command_matches_for_bot(
+    text: str,
+    command: str,
+    bot: BotRuntime | None = None,
+    *,
+    require_bot_mention: bool = False,
+) -> bool:
+    if not command:
+        return False
+    value = str(text or "").strip()
+    normalized_command = str(command or "").strip()
+    if not value or not normalized_command:
+        return False
+    if value == normalized_command and not require_bot_mention:
+        return True
+
+    username = bot_username(bot)
+    if not username:
+        return False
+    mention = f"@{username}"
+    lowered = value.lower()
+    command_lower = normalized_command.lower()
+    mention_lower = mention.lower()
+    return lowered in {
+        f"{command_lower}{mention_lower}",
+        f"{command_lower} {mention_lower}",
+    }
 
 
 def command_enabled(commands: dict, key: str) -> bool:
@@ -962,11 +1044,17 @@ def normalize_target_records(records: list, default_role: str) -> list[dict]:
             role = normalize_approval_role(record.get("role"), target_type)
             enabled = bool(record.get("enabled", True))
             added_at = str(record.get("added_at") or datetime.now(timezone.utc).isoformat())
+            metadata = {
+                key: record.get(key)
+                for key in ("chat_type", "title", "username", "target_username")
+                if record.get(key)
+            }
         else:
             target_id = str(record).strip()
             role = "owner" if index == 0 and default_role == "allowed_user" else "admin"
             enabled = True
             added_at = datetime.now(timezone.utc).isoformat()
+            metadata = {}
         if not target_id or target_id in seen:
             continue
         if target_type == "chat":
@@ -976,12 +1064,69 @@ def normalize_target_records(records: list, default_role: str) -> list[dict]:
                 owner_seen = True
             elif role not in {"public", "admin"}:
                 role = "public"
-        elif role not in {"public", "admin", "owner"}:
-            role = "public"
-        normalized.append(
-            {"id": target_id, "role": role, "enabled": enabled, "added_at": added_at}
-        )
+        else:
+            role = normalize_channel_bot_status(role)
+        normalized.append({
+            "id": target_id,
+            "role": role,
+            "enabled": enabled,
+            "added_at": added_at,
+            **metadata,
+        })
         seen.add(target_id)
+    return normalized
+
+
+def normalize_channel_bot_status(role: object) -> str:
+    value = str(role or "").strip().lower()
+    value = {
+        "allowed_channel": "admin",
+        "bot_admin": "admin",
+        "channel_owner": "admin",
+        "owner": "admin",
+        "administrator": "admin",
+        "creator": "admin",
+        "public": "member",
+    }.get(value, value)
+    return value if value in {"admin", "member"} else "member"
+
+
+def normalize_channel_runtime_status(status: object) -> str:
+    value = str(status or "").strip().lower()
+    value = {
+        "allowed_channel": "admin",
+        "bot_admin": "admin",
+        "channel_owner": "admin",
+        "owner": "admin",
+        "administrator": "admin",
+        "creator": "admin",
+        "public": "member",
+        "restricted": "member",
+        "kicked": "left",
+    }.get(value, value)
+    return value if value in {"admin", "member", "left"} else "member"
+
+
+def target_status_from_chat_member(member: dict | None) -> str:
+    return normalize_channel_runtime_status(chat_member_status(member))
+
+
+def normalize_channel_status_records(records: object) -> dict:
+    if not isinstance(records, dict):
+        return {}
+    normalized: dict[str, dict] = {}
+    for channel_id, record in records.items():
+        target_id = str(channel_id or "").strip()
+        if not target_id:
+            continue
+        if not isinstance(record, dict):
+            record = {"status": record}
+        status = normalize_channel_runtime_status(record.get("status"))
+        normalized[target_id] = {
+            **record,
+            "status": status,
+            "updated_at": str(record.get("updated_at") or utc_now_iso()),
+        }
     return normalized
 
 
@@ -992,8 +1137,10 @@ def normalize_approval_role(role: object, target_type: str = "chat") -> str:
         "allowed_channel": "admin",
         "bot_admin": "admin",
         "bot_owner": "owner",
-        "channel_owner": "owner",
+        "channel_owner": "admin",
     }.get(value, value)
+    if target_type == "channel":
+        return normalize_channel_bot_status(value)
     if value not in {"owner", "admin", "public"}:
         return "public"
     return value
@@ -1105,6 +1252,12 @@ def normalize_settings(data: dict) -> dict:
         if not normalized_key:
             continue
         connection["bot_id"] = str(connection.get("bot_id") or normalized_key)
+        group_channel_statuses = normalize_channel_status_records(bot.get("channel_statuses"))
+        group_channel_statuses.update(
+            normalize_channel_status_records(bot.get("group_channel_statuses"))
+        )
+        bot["group_channel_statuses"] = group_channel_statuses
+        bot.pop("channel_statuses", None)
         allowed = bot.setdefault("allowed", {"chats": [], "channels": []})
         allowed["chats"] = normalize_target_records(
             allowed.get("chats", []),
@@ -1114,6 +1267,13 @@ def normalize_settings(data: dict) -> dict:
             allowed.get("channels", []),
             "allowed_channel",
         )
+        for record in allowed["channels"]:
+            channel_id = str(record.get("id") or "").strip()
+            if channel_id and channel_id not in bot["group_channel_statuses"]:
+                bot["group_channel_statuses"][channel_id] = {
+                    "status": normalize_channel_bot_status(record.get("role")),
+                    "updated_at": str(record.get("added_at") or utc_now_iso()),
+                }
         if bot.get("label") == "Telegram Bot" and connection.get("bot_username"):
             bot["label"] = f"@{connection['bot_username']}"
         normalized_bots[normalized_key] = bot
@@ -1690,114 +1850,55 @@ def classify_model_test_exception(exc: Exception) -> tuple[str, str]:
 
 
 def load_settings() -> dict:
-    if SETTINGS_FILE.exists():
-        try:
-            data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            data = {}
-    else:
-        data = default_settings_from_env()
-        save_settings(data)
-
-    return normalize_settings(data)
+    return settings_store.load_settings_document(
+        SETTINGS_FILE,
+        default_settings_from_env,
+        normalize_settings,
+    )
 
 
 def save_settings(settings: dict) -> None:
-    ensure_parent_dir(SETTINGS_FILE)
-    data = normalize_settings(settings)
-    SETTINGS_FILE.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    settings_store.save_settings_document(SETTINGS_FILE, settings, normalize_settings)
 
 
 def load_requests() -> dict:
-    if not REQUESTS_FILE.exists():
-        return {"targets": {}}
-    try:
-        data = json.loads(REQUESTS_FILE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {"targets": {}}
-    if not isinstance(data, dict):
-        return {"targets": {}}
-    targets = data.get("targets")
-    if not isinstance(targets, dict):
-        data["targets"] = {}
-    return data
+    return request_store.load_requests_document(REQUESTS_FILE)
 
 
 def save_requests(data: dict) -> None:
-    ensure_parent_dir(REQUESTS_FILE)
-    if not isinstance(data.get("targets"), dict):
-        data["targets"] = {}
-    REQUESTS_FILE.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    request_store.save_requests_document(REQUESTS_FILE, data)
 
 
 def request_key(bot_id: str, target_type: str, target_id: str) -> str:
-    return f"{bot_id}:{target_type}:{target_id}"
+    return approval_service.request_key(bot_id, target_type, target_id)
 
 
-def upsert_request_target(
-    bot_id: str,
-    target: dict,
-    sender: dict | None = None,
-) -> dict:
-    target_id = str(target.get("id") or sender_uid(sender, "")).strip()
-    target_type = str(target.get("type") or "chat").strip()
-    if target_type not in {"chat", "channel"}:
-        target_type = "chat"
-    if not bot_id or not target_id:
-        return {}
-    data = load_requests()
-    key = request_key(bot_id, target_type, target_id)
-    now = utc_now_iso()
-    existing = data["targets"].get(key, {})
-    label = target_display_label(target, sender, target_id)
-    record = {
-        **existing,
-        "bot_id": bot_id,
-        "target_type": target_type,
-        "id": target_id,
-        "role": "public",
-        "status": existing.get("status") or "pending",
-        "label": label,
-        "username": sender.get("username") if sender else target.get("username"),
-        "name": sender.get("name") if sender else target.get("title"),
-        "title": target.get("title"),
-        "first_seen_at": existing.get("first_seen_at") or now,
-        "last_request_at": now,
-    }
-    data["targets"][key] = record
-    save_requests(data)
-    return record
+def remove_request_target_if_exists(bot_id: str, target_type: str, target_id: str) -> bool:
+    return approval_service.remove_request_target_if_exists(sys.modules[__name__], bot_id, target_type, target_id)
+
+
+def upsert_request_target(bot_id: str, target: dict, sender: dict | None = None) -> dict:
+    return approval_service.upsert_request_target(sys.modules[__name__], bot_id, target, sender)
 
 
 def target_display_label(target: dict, sender: dict | None, fallback_id: str) -> str:
-    if target.get("type") == "channel":
-        username = target.get("username")
-        title = target.get("title")
-        if username:
-            return f"Channel @{username}"
-        if title:
-            return f"Channel {title}"
-        return f"Channel {fallback_id}"
-    if sender:
-        username = sender.get("username")
-        name = sender.get("name")
-        if username:
-            return f"@{username}"
-        if name:
-            return str(name)
-    return f"Chat {fallback_id}"
+    return approval_service.target_display_label(target, sender, fallback_id)
+
+
+def channel_target_from_record(channel_id: str, record: dict | None = None) -> dict:
+    return approval_service.channel_target_from_record(channel_id, record)
+
+
+def chat_target_from_record(chat_id: str, record: dict | None = None) -> dict:
+    return approval_service.chat_target_from_record(chat_id, record)
+
+
+def is_group_chat_type(chat_type: object) -> bool:
+    return str(chat_type or "").strip() in {"group", "supergroup"}
 
 
 def approval_record_exists(settings: dict, bot_id: str, target_type: str, target_id: str) -> bool:
-    bot = settings.get("services", {}).get("telegram", {}).get("bots", {}).get(bot_id, {})
-    key = "channels" if target_type == "channel" else "chats"
-    return any(str(record.get("id")) == str(target_id) for record in bot.get("allowed", {}).get(key, []))
+    return approval_service.approval_record_exists(sys.modules[__name__], settings, bot_id, target_type, target_id)
 
 
 def list_request_targets(
@@ -1808,131 +1909,33 @@ def list_request_targets(
     page: int = 1,
     page_size: int = 30,
 ) -> dict:
-    settings = load_settings()
-    data = load_requests()
-    normalized_type = target_type if target_type in {"chat", "channel", "all"} else "chat"
-    normalized_query = query.strip().lower()
-    items = []
-    for record in data.get("targets", {}).values():
-        if str(record.get("bot_id")) != str(bot_id):
-            continue
-        if normalized_type != "all" and str(record.get("target_type")) != normalized_type:
-            continue
-        approved = approval_record_exists(
-            settings,
-            bot_id,
-            str(record.get("target_type") or "chat"),
-            str(record.get("id") or ""),
-        )
-        if approved:
-            continue
-        haystack = " ".join(
-            str(record.get(key) or "")
-            for key in ["id", "label", "username", "name", "title"]
-        ).lower()
-        if normalized_query and normalized_query not in haystack:
-            continue
-        items.append({**record, "status": "pending", "approved": False})
-    items.sort(key=lambda item: str(item.get("last_request_at") or item.get("last_seen_at") or ""), reverse=True)
-    page = max(1, page)
-    page_size = max(1, min(100, page_size))
-    start = (page - 1) * page_size
-    paged = items[start:start + page_size]
-    return {
-        "items": paged,
-        "page": page,
-        "page_size": page_size,
-        "total": len(items),
-        "has_more": start + page_size < len(items),
-    }
+    return approval_service.list_request_targets(
+        sys.modules[__name__], bot_id, target_type, status, query, page, page_size
+    )
 
 
 def request_counts_by_bot(settings: dict | None = None) -> dict:
-    settings = settings or load_settings()
-    data = load_requests()
-    counts: dict[str, dict[str, int]] = {}
-    for record in data.get("targets", {}).values():
-        bot_id = str(record.get("bot_id") or "")
-        target_type = "channel" if record.get("target_type") == "channel" else "chat"
-        target_id = str(record.get("id") or "")
-        if not bot_id or not target_id:
-            continue
-        if approval_record_exists(settings, bot_id, target_type, target_id):
-            continue
-        bot_counts = counts.setdefault(bot_id, {"total": 0, "chat": 0, "channel": 0})
-        bot_counts["total"] += 1
-        bot_counts[target_type] += 1
-    return counts
+    return approval_service.request_counts_by_bot(sys.modules[__name__], settings)
 
 
 def approve_request_target(bot_id: str, target_type: str, target_id: str, config: Config | None = None) -> dict:
-    settings = load_settings()
-    resolved_bot_id = resolve_telegram_bot_id(settings, bot_id)
-    target_type = "channel" if target_type == "channel" else "chat"
-    target_id = str(target_id).strip()
-    if not target_id:
-        raise ValueError("Missing target id")
-    bot = settings["services"]["telegram"]["bots"][resolved_bot_id]
-    allowed = bot.setdefault("allowed", {"chats": [], "channels": []})
-    key = "channels" if target_type == "channel" else "chats"
-    records = normalize_target_records(
-        allowed.get(key, []),
-        "allowed_channel" if target_type == "channel" else "allowed_user",
-    )
-    if not any(str(record.get("id")) == target_id for record in records):
-        records.append(
-            {
-                "id": target_id,
-                "role": "public",
-                "enabled": True,
-                "added_at": utc_now_iso(),
-            }
-        )
-    allowed[key] = records
-    save_settings(settings)
-    data = load_requests()
-    record = data["targets"].get(request_key(resolved_bot_id, target_type, target_id))
-    if record:
-        data["targets"].pop(request_key(resolved_bot_id, target_type, target_id), None)
-        save_requests(data)
-    if config:
-        updated_settings = load_settings()
-        notify_bot_targets(
-            config,
-            updated_settings,
-            resolved_bot_id,
-            [target_id],
-            telegram_message(updated_settings, "approval_success"),
-        )
-    return load_settings()
+    return approval_service.approve_request_target(sys.modules[__name__], bot_id, target_type, target_id, config)
 
 
-def reject_request_target(
-    bot_id: str,
-    target_type: str,
-    target_id: str,
-    config: Config | None = None,
-) -> dict:
-    settings = load_settings()
-    resolved_bot_id = resolve_telegram_bot_id(settings, bot_id)
-    target_type = "channel" if target_type == "channel" else "chat"
-    target_id = str(target_id).strip()
-    data = load_requests()
-    key = request_key(resolved_bot_id, target_type, target_id)
-    record = data["targets"].get(key)
-    if not record:
-        raise ValueError("Unknown request target")
-    data["targets"].pop(key, None)
-    save_requests(data)
-    if config:
-        notify_bot_targets(
-            config,
-            settings,
-            resolved_bot_id,
-            [target_id],
-            telegram_message(settings, "apply_rejected_channel" if target_type == "channel" else "apply_rejected_user"),
-        )
-    return record
+def telegram_leave_chat_or_already_left(config: Config, bot: BotRuntime, target_id: str) -> None:
+    approval_service.telegram_leave_chat_or_already_left(sys.modules[__name__], config, bot, target_id)
+
+
+def remove_allowed_target(bot_id: str, target_type: str, target_id: str, config: Config) -> dict:
+    return approval_service.remove_allowed_target(sys.modules[__name__], bot_id, target_type, target_id, config)
+
+
+def ensure_local_target_conversation(config: Config, settings: dict, bot_id: str, target_id: str) -> None:
+    approval_service.ensure_local_target_conversation(sys.modules[__name__], config, settings, bot_id, target_id)
+
+
+def reject_request_target(bot_id: str, target_type: str, target_id: str, config: Config | None = None) -> dict:
+    return approval_service.reject_request_target(sys.modules[__name__], bot_id, target_type, target_id, config)
 
 
 def save_telegram_message_settings(
@@ -2087,7 +2090,7 @@ def mark_telegram_commands_synced(settings: dict) -> dict:
 
 
 def target_records_from_payload(records: list[str | dict], default_role: str) -> list[dict]:
-    return normalize_target_records(records, default_role)
+    return approval_service.target_records_from_payload(sys.modules[__name__], records, default_role)
 
 
 def resolve_telegram_bot_id(settings: dict, bot_id: str | None) -> str:
@@ -2102,6 +2105,43 @@ def resolve_telegram_bot_id(settings: dict, bot_id: str | None) -> str:
     raise ValueError("bot_id is required when multiple Telegram bots are configured")
 
 
+def channel_bot_status(settings: dict, bot_id: str | None, channel_id: str) -> str:
+    target_id = str(channel_id or "").strip()
+    if not target_id:
+        return "left"
+    try:
+        resolved_bot_id = resolve_telegram_bot_id(settings, bot_id)
+    except ValueError:
+        return "left"
+    bot = settings.get("services", {}).get("telegram", {}).get("bots", {}).get(resolved_bot_id, {})
+    statuses = normalize_channel_status_records(
+        bot.get("group_channel_statuses") or bot.get("channel_statuses")
+    )
+    status_record = statuses.get(target_id)
+    if status_record:
+        return normalize_channel_runtime_status(status_record.get("status"))
+    for record in bot.get("allowed", {}).get("chats", []):
+        if str(record.get("id")) == target_id and is_group_chat_type(record.get("chat_type")):
+            return "member"
+    for record in bot.get("allowed", {}).get("channels", []):
+        if str(record.get("id")) == target_id:
+            return normalize_channel_bot_status(record.get("role"))
+    return "left"
+
+
+def target_bot_status(settings: dict, bot_id: str | None, target_id: str) -> str:
+    return channel_bot_status(settings, bot_id, target_id)
+
+
+def upsert_discovered_target(
+    bot_id: str | None,
+    chat: dict,
+    status: object,
+    enabled_default: bool = False,
+) -> dict:
+    return approval_service.upsert_discovered_target(sys.modules[__name__], bot_id, chat, status, enabled_default)
+
+
 def save_allowed_targets(
     user_ids: list,
     channel_ids: list,
@@ -2110,126 +2150,25 @@ def save_allowed_targets(
     disabled_message_key: str | None = None,
     notify_removed: bool = True,
 ) -> None:
-    settings = load_settings()
-    bots = settings["services"]["telegram"]["bots"]
-    resolved_bot_id = resolve_telegram_bot_id(settings, bot_id)
-    allowed = bots[resolved_bot_id].setdefault("allowed", {})
-
-    before_chats = target_records_from_payload(
-        allowed.get("chats", []),
-        "allowed_user",
+    approval_service.save_allowed_targets(
+        sys.modules[__name__], user_ids, channel_ids, bot_id, config, disabled_message_key, notify_removed
     )
-    before_channels = target_records_from_payload(
-        allowed.get("channels", []),
-        "allowed_channel",
-    )
-    after_chats = target_records_from_payload(user_ids, "allowed_user")
-    after_channels = target_records_from_payload(channel_ids, "allowed_channel")
-
-    before_enabled = target_enabled_ids(before_chats + before_channels)
-    before_all = target_all_ids(before_chats + before_channels)
-    after_enabled = target_enabled_ids(after_chats + after_channels)
-    after_all = target_all_ids(after_chats + after_channels)
-    before_chat_roles = {
-        str(record["id"]): normalize_approval_role(record.get("role"), "chat")
-        for record in before_chats
-    }
-    after_chat_roles = {
-        str(record["id"]): normalize_approval_role(record.get("role"), "chat")
-        for record in after_chats
-    }
-
-    allowed["chats"] = after_chats
-    allowed["channels"] = after_channels
-    save_settings(settings)
-
-    removed_targets = sorted(before_all - after_all)
-    if config:
-        if removed_targets and notify_removed:
-            notify_bot_targets(
-                config,
-                settings,
-                resolved_bot_id,
-                removed_targets,
-                telegram_message(settings, "approval_removed"),
-            )
-        if removed_targets:
-            remove_conversations(config, removed_targets, resolved_bot_id)
-        enabled_targets = sorted(after_enabled - before_enabled)
-        disabled_targets = sorted((before_enabled & after_all) - after_enabled)
-        if enabled_targets:
-            notify_bot_targets(
-                config,
-                settings,
-                resolved_bot_id,
-                enabled_targets,
-                telegram_message(settings, "assistant_online"),
-            )
-        if disabled_targets:
-            notify_bot_targets(
-                config,
-                settings,
-                resolved_bot_id,
-                disabled_targets,
-                telegram_message(settings, disabled_message_key or "assistant_offline"),
-            )
-        role_changed_targets = sorted(
-            before_enabled
-            & after_enabled
-            & set(before_chat_roles)
-            & set(after_chat_roles)
-        )
-        for target_id in role_changed_targets:
-            from_role = before_chat_roles[target_id]
-            to_role = after_chat_roles[target_id]
-            direction = role_change_direction(from_role, to_role)
-            if not direction:
-                continue
-            notify_bot_targets(
-                config,
-                settings,
-                resolved_bot_id,
-                [target_id],
-                telegram_message(
-                    settings,
-                    "role_upgrade_user" if direction == "upgrade" else "role_downgrade_user",
-                    from_role=role_message_label(from_role),
-                    to_role=role_message_label(to_role),
-                ),
-            )
 
 
 def target_enabled_ids(records: list[dict]) -> set[str]:
-    return {str(record["id"]) for record in records if record.get("enabled", True)}
+    return approval_service.target_enabled_ids(records)
 
 
 def target_all_ids(records: list[dict]) -> set[str]:
-    return {str(record["id"]) for record in records}
-
-
-ROLE_RANKS = {
-    "public": 0,
-    "admin": 1,
-    "owner": 2,
-}
+    return approval_service.target_all_ids(records)
 
 
 def role_change_direction(from_role: str, to_role: str) -> str | None:
-    from_rank = ROLE_RANKS.get(normalize_approval_role(from_role), 0)
-    to_rank = ROLE_RANKS.get(normalize_approval_role(to_role), 0)
-    if to_rank > from_rank:
-        return "upgrade"
-    if to_rank < from_rank:
-        return "downgrade"
-    return None
+    return approval_service.role_change_direction(sys.modules[__name__], from_role, to_role)
 
 
 def role_message_label(role: str) -> str:
-    return {
-        "owner": "Owner",
-        "admin": "Admin",
-        "public": "Public",
-    }.get(normalize_approval_role(role), "Public")
+    return approval_service.role_message_label(sys.modules[__name__], role)
 
 
 def first_telegram_bot(settings: dict) -> dict:
@@ -2293,28 +2232,11 @@ def telegram_bot_allowed_ids(settings: dict, bot_key: str) -> tuple[list[str], l
     return chats, channels
 
 
-def telegram_bot_disabled_ids(settings: dict, bot_key: str) -> tuple[list[str], list[str]]:
-    bot = settings["services"]["telegram"]["bots"].get(bot_key, {})
-    allowed = bot.get("allowed", {})
-    chats = [record["id"] for record in allowed.get("chats", []) if not record.get("enabled", True)]
-    channels = [record["id"] for record in allowed.get("channels", []) if not record.get("enabled", True)]
-    return chats, channels
-
-
 def telegram_allowed_ids(settings: dict) -> tuple[list[str], list[str]]:
     bot_ids = telegram_bot_ids(settings)
     if not bot_ids:
         return [], []
     return telegram_bot_allowed_ids(settings, bot_ids[0])
-
-
-def telegram_owner_record(settings: dict, bot_id: str | None = None) -> dict | None:
-    resolved_bot_id = resolve_telegram_bot_id(settings, bot_id)
-    allowed = settings["services"]["telegram"]["bots"][resolved_bot_id].get("allowed", {})
-    for record in allowed.get("chats", []):
-        if record.get("role") == "owner":
-            return record
-    return None
 
 
 def save_telegram_service(payload: dict) -> dict:
@@ -2651,102 +2573,31 @@ def mark_console_auth_used(auth: dict) -> None:
 
 
 def load_state(path: Path) -> dict:
-    if not path.exists():
-        return {"chats": {}, "model_sessions": {}}
-
-    try:
-        state = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {"chats": {}}
-
-    if not isinstance(state, dict):
-        return {"chats": {}, "model_sessions": {}}
-
-    state.setdefault("chats", {})
-    state.setdefault("model_sessions", {})
-    normalize_conversation_state(state)
-    return state
+    return conversation_store.load_state(path)
 
 
 def save_state(path: Path, state: dict) -> None:
-    normalize_conversation_state(state)
-    ensure_parent_dir(path)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    conversation_store.save_state(path, state)
 
 
 def conversation_key(bot: BotRuntime | None, chat_id: str) -> str:
-    target_id = str(chat_id).strip()
-    if bot and bot.bot_id and bot.bot_id != "default":
-        return f"{bot.bot_id}:{target_id}"
-    return target_id
+    return conversation_store.conversation_key(bot, chat_id)
 
 
 def split_conversation_key(key: str) -> tuple[str | None, str]:
-    value = str(key or "").strip()
-    if ":" not in value:
-        return None, value
-    bot_id, target_id = value.split(":", 1)
-    if bot_id and target_id:
-        return bot_id, target_id
-    return None, value
+    return conversation_store.split_conversation_key(key)
 
 
 def conversation_target_id(key: str, turns: list[dict] | None = None) -> str:
-    _, target_id = split_conversation_key(key)
-    if target_id:
-        return target_id
-    for turn in turns or []:
-        for source_key in ("target", "sender"):
-            source = turn.get(source_key)
-            if isinstance(source, dict) and source.get("id"):
-                return str(source["id"])
-        if turn.get("chat_id"):
-            return str(turn["chat_id"])
-    return str(key)
+    return conversation_store.conversation_target_id(key, turns)
 
 
 def conversation_bot_id(key: str, turns: list[dict] | None = None) -> str:
-    scoped_bot_id, _ = split_conversation_key(key)
-    if scoped_bot_id:
-        return scoped_bot_id
-    for turn in reversed(turns or []):
-        bot_id = str(turn.get("bot_id") or "").strip()
-        if bot_id and bot_id != "default":
-            return bot_id
-    return "default"
+    return conversation_store.conversation_bot_id(key, turns)
 
 
 def normalize_conversation_state(state: dict) -> None:
-    chats = state.get("chats")
-    if not isinstance(chats, dict):
-        state["chats"] = {}
-        return
-
-    normalized: dict[str, list[dict]] = {}
-    for stored_key, turns in chats.items():
-        if not isinstance(turns, list):
-            continue
-        key_text = str(stored_key)
-        scoped_bot_id, scoped_target_id = split_conversation_key(key_text)
-        legacy_target_id = scoped_target_id if scoped_bot_id else key_text
-
-        for turn in turns:
-            if not isinstance(turn, dict):
-                continue
-            target_id = str(
-                turn.get("chat_id")
-                or (turn.get("target") or {}).get("id")
-                or (turn.get("sender") or {}).get("id")
-                or legacy_target_id
-            )
-            turn.setdefault("chat_id", target_id)
-            bot_id = str(turn.get("bot_id") or scoped_bot_id or "").strip()
-            next_key = f"{bot_id}:{target_id}" if bot_id and bot_id != "default" else target_id
-            normalized.setdefault(next_key, []).append(turn)
-
-    for turns in normalized.values():
-        turns.sort(key=lambda turn: str(turn.get("created_at") or ""))
-    state["chats"] = normalized
+    conversation_store.normalize_conversation_state(state)
 
 
 def resolve_conversation_storage_key(
@@ -2754,33 +2605,7 @@ def resolve_conversation_storage_key(
     chat_id: str,
     bot: BotRuntime | None = None,
 ) -> str:
-    requested = str(chat_id).strip()
-    chats = state.get("chats", {})
-    if requested in chats:
-        return requested
-    if bot:
-        scoped = conversation_key(bot, requested)
-        if scoped in chats:
-            return scoped
-    matches = [
-        key for key, turns in chats.items()
-        if conversation_target_id(key, turns if isinstance(turns, list) else []) == requested
-    ]
-    if bot:
-        scoped_matches = [key for key in matches if conversation_bot_id(key, chats.get(key, [])) == bot.bot_id]
-        if scoped_matches:
-            return sorted(
-                scoped_matches,
-                key=lambda key: str((chats.get(key) or [{}])[-1].get("created_at") or ""),
-                reverse=True,
-            )[0]
-    if matches:
-        return sorted(
-            matches,
-            key=lambda key: str((chats.get(key) or [{}])[-1].get("created_at") or ""),
-            reverse=True,
-        )[0]
-    return conversation_key(bot, requested)
+    return conversation_store.resolve_conversation_storage_key(state, chat_id, bot)
 
 
 def model_session_bucket(bot: BotRuntime | None) -> str:
@@ -2874,30 +2699,11 @@ def clear_chat_model_override(
 
 
 def load_runtime_status() -> dict:
-    if not RUNTIME_STATUS_FILE.exists():
-        return {"telegram": {"bots": {}}}
-
-    try:
-        status = json.loads(RUNTIME_STATUS_FILE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {"telegram": {"bots": {}}}
-
-    if not isinstance(status, dict):
-        return {"telegram": {"bots": {}}}
-
-    status.setdefault("telegram", {})
-    status["telegram"].setdefault("bots", {})
-    return status
+    return runtime_status_store.load_runtime_status_document(RUNTIME_STATUS_FILE)
 
 
 def save_runtime_status(status: dict) -> None:
-    ensure_parent_dir(RUNTIME_STATUS_FILE)
-    tmp_path = RUNTIME_STATUS_FILE.with_suffix(".tmp")
-    tmp_path.write_text(
-        json.dumps(status, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    tmp_path.replace(RUNTIME_STATUS_FILE)
+    runtime_status_store.save_runtime_status_document(RUNTIME_STATUS_FILE, status)
 
 
 def notify_console_runtime_update() -> None:
@@ -3030,6 +2836,7 @@ def append_manual_bot_turn(
     bot: BotRuntime,
     telegram_message_ids: list[int],
     attachments: list[dict],
+    target: dict | None = None,
 ) -> None:
     state = load_state(config.state_file)
     storage_key = conversation_key(bot, chat_id)
@@ -3044,6 +2851,8 @@ def append_manual_bot_turn(
         "bot_label": bot.label,
         "manual": True,
     }
+    if target:
+        turn["target"] = target
     if telegram_message_ids:
         turn["telegram_message_ids"] = telegram_message_ids
         turn["telegram_message_id"] = telegram_message_ids[-1]
@@ -3358,18 +3167,7 @@ def telegram_api(
     payload: dict | None = None,
     bot: BotRuntime | None = None,
 ) -> dict:
-    token = bot.token if bot else config.bot_token
-    if not token:
-        raise RuntimeError("Missing Telegram bot token")
-    url = f"{TELEGRAM_API_BASE}/bot{token}/{method}"
-    response = requests.post(url, json=payload or {}, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-
-    if not data.get("ok"):
-        raise RuntimeError(f"Telegram API error: {data}")
-
-    return data
+    return telegram_client.telegram_api(config, method, payload, bot)
 
 
 def telegram_upload_api(
@@ -3380,28 +3178,11 @@ def telegram_upload_api(
     file_path: Path,
     bot: BotRuntime | None = None,
 ) -> dict:
-    token = bot.token if bot else config.bot_token
-    if not token:
-        raise RuntimeError("Missing Telegram bot token")
-    if not file_path.exists() or not file_path.is_file():
-        raise FileNotFoundError(f"Telegram media file does not exist: {file_path}")
-
-    content_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-    url = f"{TELEGRAM_API_BASE}/bot{token}/{method}"
-    with file_path.open("rb") as file_obj:
-        files = {field_name: (file_path.name, file_obj, content_type)}
-        response = requests.post(url, data=payload, files=files, timeout=120)
-    response.raise_for_status()
-    data = response.json()
-
-    if not data.get("ok"):
-        raise RuntimeError(f"Telegram API error: {data}")
-
-    return data
+    return telegram_client.telegram_upload_api(config, method, payload, field_name, file_path, bot)
 
 
 def telegram_file_info(config: Config, file_id: str, bot: BotRuntime | None = None) -> dict:
-    return telegram_api(config, "getFile", {"file_id": file_id}, bot).get("result", {})
+    return telegram_client.telegram_file_info(config, file_id, bot)
 
 
 def download_telegram_file(
@@ -3410,19 +3191,7 @@ def download_telegram_file(
     destination: Path,
     bot: BotRuntime | None = None,
 ) -> tuple[Path, str, int]:
-    file_info = telegram_file_info(config, file_id, bot)
-    file_path = str(file_info.get("file_path") or "").strip()
-    token = bot.token if bot else config.bot_token
-    if not token or not file_path:
-        raise RuntimeError("Telegram file path is not available")
-
-    ensure_parent_dir(destination)
-    url = f"{TELEGRAM_API_BASE}/file/bot{token}/{file_path}"
-    response = requests.get(url, timeout=120)
-    response.raise_for_status()
-    destination.write_bytes(response.content)
-    content_type = response.headers.get("Content-Type") or mimetypes.guess_type(destination.name)[0] or "application/octet-stream"
-    return destination, content_type, len(response.content)
+    return telegram_client.download_telegram_file(config, file_id, destination, bot)
 
 
 def telegram_attachment_source(message: dict) -> tuple[str, dict] | None:
@@ -3742,7 +3511,12 @@ def send_manual_conversation_message(
             sent_ids.append(int(message_id))
         attachments.append(outgoing_attachment_from_file(file_path, attachment_kind))
 
-    append_manual_bot_turn(config, telegram_chat_id, text.strip(), bot, sent_ids, attachments)
+    target = None
+    for turn in turns:
+        if isinstance(turn, dict) and isinstance(turn.get("target"), dict):
+            target = turn["target"]
+            break
+    append_manual_bot_turn(config, telegram_chat_id, text.strip(), bot, sent_ids, attachments, target)
     notify_console_update(config, storage_key)
     return {
         "sent_telegram_messages": len(sent_ids),
@@ -3906,6 +3680,53 @@ def telegram_user_avatar(
         return None
 
 
+def telegram_chat_avatar(
+    config: Config,
+    chat_id: str,
+    bot_id: str | None = None,
+) -> tuple[bytes, str] | None:
+    normalized_chat_id = str(chat_id or "").strip()
+    if not normalized_chat_id:
+        return None
+
+    settings = load_settings()
+    requested_bot_id = None if not bot_id or bot_id == "default" else str(bot_id).strip()
+    try:
+        resolved_bot_id = resolve_telegram_bot_id(settings, requested_bot_id)
+    except ValueError:
+        return None
+
+    bot = telegram_bot_runtime(settings, resolved_bot_id)
+    try:
+        chat = telegram_api(config, "getChat", {"chat_id": normalized_chat_id}, bot)
+        photo = (chat.get("result") or {}).get("photo") or {}
+        file_id = str(photo.get("big_file_id") or photo.get("small_file_id") or "").strip()
+        if not file_id:
+            return None
+
+        file_info = telegram_api(config, "getFile", {"file_id": file_id}, bot)
+        file_path = str((file_info.get("result") or {}).get("file_path") or "").strip()
+        if not file_path:
+            return None
+
+        response = requests.get(
+            f"{TELEGRAM_API_BASE}/file/bot{bot.token}/{file_path.lstrip('/')}",
+            timeout=30,
+        )
+        response.raise_for_status()
+        content_type = response.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
+        if content_type == "application/octet-stream":
+            guessed_type, _ = mimetypes.guess_type(file_path)
+            content_type = guessed_type or content_type
+        return response.content, content_type or "image/jpeg"
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"Failed to fetch Telegram avatar for chat {normalized_chat_id}: {safe_error_text(exc, bot)}",
+            file=sys.stderr,
+        )
+        return None
+
+
 def edit_message(
     config: Config,
     chat_id: str,
@@ -4044,12 +3865,16 @@ def format_chat(chat: dict) -> str:
 
 def sender_from_message(message: dict, chat_id: str) -> dict:
     sender = message.get("from") or message.get("sender_chat") or {}
+    return sender_from_telegram_user(sender, chat_id)
+
+
+def sender_from_telegram_user(sender: dict, fallback_id: str = "") -> dict:
     username = sender.get("username")
     first_name = sender.get("first_name")
     last_name = sender.get("last_name")
     title = sender.get("title")
     full_name = " ".join(part for part in [first_name, last_name] if part)
-    sender_id = str(sender.get("id") or chat_id)
+    sender_id = str(sender.get("id") or fallback_id)
 
     if username:
         label = f"@{username} (UID: {sender_id})"
@@ -4068,8 +3893,16 @@ def sender_from_message(message: dict, chat_id: str) -> dict:
     }
 
 
+def message_text(message: dict) -> str:
+    return str(message.get("text") or message.get("caption") or "").strip()
+
+
 def target_from_message(message: dict) -> dict:
     chat = message.get("chat") or {}
+    return target_from_chat(chat)
+
+
+def target_from_chat(chat: dict) -> dict:
     chat_id = str(chat.get("id") or "")
     chat_type = chat.get("type") or "private"
     target_type = "channel" if chat_type == "channel" else "chat"
@@ -4119,6 +3952,19 @@ def user_status_for_chat(config: Config, chat_id: str, bot_id: str | None = None
     if not resolved_bot_id:
         return "public"
     decision = resolve_bot_access(settings, resolved_bot_id, chat_id, "message")
+    bot = settings.get("services", {}).get("telegram", {}).get("bots", {}).get(resolved_bot_id, {})
+    for record in bot.get("allowed", {}).get("chats", []):
+        if str(record.get("id")) == str(chat_id) and is_group_chat_type(record.get("chat_type")):
+            return f"channel_{target_bot_status(settings, resolved_bot_id, chat_id)}"
+    status = channel_bot_status(settings, resolved_bot_id, chat_id)
+    if status != "left" or any(
+        str(record.get("id")) == str(chat_id)
+        for record in bot.get("allowed", {}).get("channels", [])
+    ):
+        return f"channel_{status}"
+    for record in bot.get("allowed", {}).get("channels", []):
+        if str(record.get("id")) == str(chat_id):
+            return f"channel_{normalize_channel_bot_status(record.get('role'))}"
     if decision.role == "owner":
         return "owner"
     if decision.allowed and decision.role == "admin":
@@ -4148,12 +3994,11 @@ def target_label_from_turns(
         target_id = target.get("id") or chat_id
         target_username = target.get("username")
         target_title = target.get("title")
+        if is_group_chat_type(target.get("chat_type")):
+            target_name = target_title or (f"@{target_username}" if target_username else target_id)
+            return f"Group in {target_name}"
         if target.get("type") == "channel":
-            target_name = (
-                f"@{target_username}"
-                if target_username
-                else target_title or target_id
-            )
+            target_name = target_title or (f"@{target_username}" if target_username else target_id)
             return f"Channel in {target_name}"
 
         target_name = (
@@ -4196,29 +4041,53 @@ def list_chats(config: Config) -> int:
 
 
 def build_chat_summary(config: Config, chat_id: str, turns: list[dict]) -> dict:
+    settings = load_settings()
     last_turn = turns[-1] if turns else {}
     bot_id = conversation_bot_id(chat_id, turns)
     target_id = conversation_target_id(chat_id, turns)
     sender = None
+    target = None
     for turn in turns:
+        if not target and isinstance(turn.get("target"), dict):
+            target = turn["target"]
         if turn.get("role") == "user" and turn.get("sender"):
             sender = turn["sender"]
-            break
+    inferred_target_record = None
+    if not target:
+        inferred_target_type, inferred_target_record = conversation_allowed_target_record(settings, bot_id, target_id)
+        if inferred_target_type == "channel":
+            target = channel_target_from_record(target_id, inferred_target_record)
+        elif inferred_target_type == "chat":
+            target = chat_target_from_record(target_id, inferred_target_record)
+    target_type = target.get("type") if isinstance(target, dict) else None
+    chat_type = target.get("chat_type") if isinstance(target, dict) else None
+    is_group_or_channel = target_type == "channel" or is_group_chat_type(chat_type)
+    bot_status_group_channel = target_bot_status(settings, bot_id, target_id) if is_group_or_channel else None
+    bot_settings = settings.get("services", {}).get("telegram", {}).get("bots", {}).get(bot_id, {})
+    inferred_target_label = target_display_label(target, sender, target_id) if isinstance(target, dict) else ""
 
     return {
         "id": chat_id,
         "target_id": target_id,
-        "title": display_name_from_sender(sender, target_id),
-        "user_status": user_status_for_chat(config, target_id, bot_id),
+        "title": (
+            display_name_from_sender(sender, target_id)
+            if sender
+            else target.get("title") if isinstance(target, dict) and target.get("title")
+            else target_id
+        ),
+        "user_status": "public" if is_group_or_channel else user_status_for_chat(config, target_id, bot_id),
+        "bot_status_group_channel": bot_status_group_channel,
         "uid": sender_uid(sender, target_id),
-        "target_label": target_label_from_turns(target_id, turns, sender),
+        "target_label": target_label_from_turns(target_id, turns, sender) if turns else inferred_target_label,
+        "target_type": target_type,
+        "chat_type": chat_type,
         "turn_count": len(turns),
         "last_role": last_turn.get("role"),
         "last_message": str(last_turn.get("content", ""))[:160],
-        "updated_at": last_turn.get("created_at"),
+        "updated_at": last_turn.get("created_at") or (inferred_target_record or {}).get("added_at"),
         "service_id": last_turn.get("service_id") or "telegram",
         "bot_id": bot_id,
-        "bot_label": last_turn.get("bot_label") or "Telegram Bot",
+        "bot_label": last_turn.get("bot_label") or bot_settings.get("label") or "Telegram Bot",
     }
 
 
@@ -4233,6 +4102,22 @@ def console_message_slice(turns: list[dict], limit: int = CONSOLE_MESSAGE_PAGE_S
         "loaded": len(visible),
         "has_more": start > 0,
     }
+
+
+def conversation_allowed_target_record(
+    settings: dict,
+    bot_id: str,
+    target_id: str,
+) -> tuple[str | None, dict | None]:
+    bot = settings.get("services", {}).get("telegram", {}).get("bots", {}).get(bot_id, {})
+    allowed = bot.get("allowed", {}) if isinstance(bot, dict) else {}
+    for record in allowed.get("channels", []):
+        if isinstance(record, dict) and str(record.get("id")) == str(target_id):
+            return "channel", record
+    for record in allowed.get("chats", []):
+        if isinstance(record, dict) and str(record.get("id")) == str(target_id):
+            return "chat", record
+    return None, None
 
 
 def conversation_message_page(
@@ -4478,6 +4363,59 @@ def is_local_operation_request(text: str) -> bool:
 def sender_is_admin(settings: dict, sender: dict) -> bool:
     sender_id = str(sender.get("id") or "").strip()
     return bool(sender_id and sender_id in set(settings.get("admins", {}).get("telegram", [])))
+
+
+def sender_is_bot_owner_or_admin(settings: dict, bot_id: str | None, sender: dict) -> bool:
+    sender_id = str(sender.get("id") or "").strip()
+    if not sender_id:
+        return False
+    if sender_id in set(settings.get("admins", {}).get("telegram", [])):
+        return True
+    try:
+        resolved_bot_id = resolve_telegram_bot_id(settings, bot_id)
+    except ValueError:
+        return False
+    bot = settings.get("services", {}).get("telegram", {}).get("bots", {}).get(resolved_bot_id, {})
+    for record in bot.get("allowed", {}).get("chats", []):
+        if str(record.get("id")) != sender_id:
+            continue
+        if is_group_chat_type(record.get("chat_type")):
+            continue
+        if record.get("enabled") is False:
+            return False
+        return normalize_approval_role(record.get("role"), "chat") in {"owner", "admin"}
+    return False
+
+
+def set_group_target_enabled(
+    bot_id: str | None,
+    group_id: str,
+    enabled: bool,
+    target: dict | None = None,
+) -> tuple[dict, bool]:
+    settings = load_settings()
+    resolved_bot_id = resolve_telegram_bot_id(settings, bot_id)
+    target_id = str(group_id or "").strip()
+    bot = settings["services"]["telegram"]["bots"][resolved_bot_id]
+    allowed = bot.setdefault("allowed", {"chats": [], "channels": []})
+    records = normalize_target_records(allowed.get("chats", []), "allowed_user")
+    changed = False
+    for record in records:
+        if str(record.get("id")) != target_id or not is_group_chat_type(record.get("chat_type")):
+            continue
+        if isinstance(target, dict):
+            for field in ("chat_type", "title", "username"):
+                if target.get(field):
+                    record[field] = target[field]
+        if bool(record.get("enabled", True)) != bool(enabled):
+            changed = True
+        record["enabled"] = bool(enabled)
+        break
+    else:
+        return settings, False
+    allowed["chats"] = records
+    save_settings(settings)
+    return load_settings(), changed
 
 
 def route_display(route: dict) -> str:
@@ -5142,6 +5080,7 @@ def process_user_message(
     target: dict,
     bot: BotRuntime | None = None,
     grouped_messages: list[dict] | None = None,
+    should_reply: bool = True,
 ) -> None:
     messages_to_process = grouped_messages or [message]
     chat_id = str(message["chat"]["id"])
@@ -5171,6 +5110,9 @@ def process_user_message(
         attachments=attachments,
     )
     notify_console_update(config, chat_id)
+
+    if not should_reply:
+        return
 
     try:
         with chat_action_heartbeat(config, chat_id, bot=bot):
@@ -5211,32 +5153,11 @@ def process_user_message(
 
 
 def media_group_key(message: dict, bot: BotRuntime | None = None) -> str:
-    return ":".join(
-        [
-            str(bot.bot_id if bot else "default"),
-            str(message["chat"]["id"]),
-            str(message.get("media_group_id") or ""),
-        ]
-    )
+    return telegram_listener.media_group_key(message, bot)
 
 
 def flush_media_group(key: str) -> None:
-    with MEDIA_GROUP_LOCK:
-        group = MEDIA_GROUP_BUFFERS.pop(key, None)
-    if not group:
-        return
-    messages = sorted(group["messages"], key=lambda item: int(item.get("message_id") or 0))
-    try:
-        process_user_message(
-            group["config"],
-            messages[0],
-            group["sender"],
-            group["target"],
-            group["bot"],
-            messages,
-        )
-    except Exception as exc:  # noqa: BLE001
-        print(f"[telegram] media group failed key={key}: {safe_error_text(exc, group.get('bot'))}", file=sys.stderr, flush=True)
+    telegram_listener.flush_media_group(sys.modules[__name__], key)
 
 
 def buffer_media_group(
@@ -5245,25 +5166,44 @@ def buffer_media_group(
     sender: dict,
     target: dict,
     bot: BotRuntime | None = None,
+    should_reply: bool = True,
 ) -> None:
-    key = media_group_key(message, bot)
-    with MEDIA_GROUP_LOCK:
-        group = MEDIA_GROUP_BUFFERS.get(key)
-        if group and group.get("timer"):
-            group["timer"].cancel()
-        group = group or {
-            "config": config,
-            "messages": [],
-            "sender": sender,
-            "target": target,
-            "bot": bot,
-        }
-        group["messages"].append(message)
-        timer = threading.Timer(MEDIA_GROUP_DELAY_SECONDS, flush_media_group, args=(key,))
-        timer.daemon = True
-        group["timer"] = timer
-        MEDIA_GROUP_BUFFERS[key] = group
-        timer.start()
+    telegram_listener.buffer_media_group(
+        sys.modules[__name__],
+        config,
+        message,
+        sender,
+        target,
+        bot,
+        should_reply,
+    )
+
+
+def chat_member_status(member: dict | None) -> str:
+    return telegram_listener.chat_member_status(member)
+
+
+def current_bot_chat_status(
+    config: Config,
+    bot: BotRuntime,
+    chat_id: str,
+    fallback_member: dict | None = None,
+) -> str:
+    return telegram_listener.current_bot_chat_status(
+        sys.modules[__name__],
+        config,
+        bot,
+        chat_id,
+        fallback_member,
+    )
+
+
+def handle_my_chat_member(
+    config: Config,
+    update: dict,
+    bot: BotRuntime,
+) -> None:
+    telegram_listener.handle_my_chat_member(sys.modules[__name__], config, update, bot)
 
 
 def handle_message(
@@ -5271,70 +5211,7 @@ def handle_message(
     message: dict,
     bot: BotRuntime | None = None,
 ) -> None:
-    chat_id = str(message["chat"]["id"])
-    text = (message.get("text") or "").strip()
-    sender = sender_from_message(message, chat_id)
-    target = target_from_message(message)
-
-    print(
-        f"[telegram] incoming chat_id={chat_id} text={text!r}",
-        flush=True,
-    )
-
-    settings = load_settings()
-    commands = telegram_commands(settings)
-    bot_settings = settings.get("services", {}).get("telegram", {}).get("bots", {}).get(bot.bot_id if bot else "", {})
-
-    if bot and not bot_settings.get("enabled", True):
-        send_message(config, chat_id, telegram_message(settings, "bot_disabled"), bot)
-        return
-
-    allowed = is_chat_allowed(config, chat_id, bot)
-
-    if command_enabled(commands, "apply") and command_matches(text, commands.get("apply", "")):
-        if allowed:
-            send_message(config, chat_id, telegram_message(settings, "already_allowed_apply"), bot)
-            return
-        if bot:
-            upsert_request_target(bot.bot_id, target, sender)
-        send_message(config, chat_id, telegram_message(settings, "apply_success"), bot)
-        notify_console_update(config, chat_id)
-        notify_console_settings_update(config)
-        return
-
-    if not allowed:
-        send_message(config, chat_id, telegram_message(settings, "access_denied_apply"), bot)
-        return
-
-    if command_enabled(commands, "help") and (text == "/start" or command_matches(text, commands.get("help", ""))):
-        send_message(config, chat_id, telegram_message(settings, "help_text"), bot)
-        return
-
-    if command_enabled(commands, "models") and command_matches(text, commands.get("models", "")):
-        send_message(
-            config,
-            chat_id,
-            format_models_button_menu(config, chat_id, bot),
-            bot,
-            models_menu_reply_markup(config, chat_id, bot),
-        )
-        return
-
-    if command_enabled(commands, "reset") and command_matches(text, commands.get("reset", "")):
-        reset_chat(config, chat_id)
-        notify_console_update(config, chat_id)
-        send_message(config, chat_id, telegram_message(settings, "reset_success"), bot)
-        return
-
-    if command_enabled(commands, "status") and command_matches(text, commands.get("status", "")):
-        send_message(config, chat_id, format_bridge_status(config, chat_id, bot), bot)
-        return
-
-    if message_has_attachment(message) and message.get("media_group_id"):
-        buffer_media_group(config, message, sender, target, bot)
-        return
-
-    process_user_message(config, message, sender, target, bot)
+    telegram_listener.handle_message(sys.modules[__name__], config, message, bot)
 
 
 def poll_bot(
@@ -5343,153 +5220,11 @@ def poll_bot(
     once: bool = False,
     stop_event: threading.Event | None = None,
 ) -> int:
-    offset = None
-    backoff_seconds = 2
-    print(
-        f"Telegram listener running for {bot.label} ({bot.bot_id}).",
-        flush=True,
-    )
-    update_bot_runtime_status(bot, "running", "Polling Telegram updates.")
-
-    while True:
-        if stop_event and stop_event.is_set():
-            print(f"[telegram:{bot.bot_id}] listener stopped.", flush=True)
-            update_bot_runtime_status(bot, "stopped", "Worker stopped.")
-            return 0
-
-        payload = {"timeout": 25}
-        if offset is not None:
-            payload["offset"] = offset
-
-        try:
-            updates = telegram_api(config, "getUpdates", payload, bot).get("result", [])
-            backoff_seconds = 2
-        except Exception as exc:  # noqa: BLE001
-            runtime_state, runtime_message = classify_poll_error(exc)
-            update_bot_runtime_status(bot, runtime_state, runtime_message)
-            print(
-                f"[telegram:{bot.bot_id}] getUpdates failed: "
-                f"{safe_error_text(exc, bot)}. reconnecting in {backoff_seconds}s",
-                file=sys.stderr,
-                flush=True,
-            )
-            if once:
-                raise
-            if stop_event and stop_event.wait(backoff_seconds):
-                return 0
-            if not stop_event:
-                time.sleep(backoff_seconds)
-            backoff_seconds = min(backoff_seconds * 2, 30)
-            continue
-
-        update_bot_runtime_status(bot, "running", "Polling Telegram updates.")
-        if updates:
-            print(
-                f"[telegram:{bot.bot_id}] polled updates={len(updates)}",
-                flush=True,
-            )
-        for update in updates:
-            offset = update["update_id"] + 1
-            callback_query = update.get("callback_query")
-            if callback_query:
-                try:
-                    handle_model_callback(config, callback_query, bot)
-                except Exception as exc:  # noqa: BLE001
-                    print(
-                        f"[telegram:{bot.bot_id}] handle_callback failed: {exc}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                    if once:
-                        raise
-                continue
-
-            message = update.get("message") or update.get("channel_post")
-            if not message:
-                continue
-
-            try:
-                handle_message(config, message, bot)
-            except Exception as exc:  # noqa: BLE001
-                print(
-                    f"[telegram:{bot.bot_id}] handle_message failed: {exc}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                if once:
-                    raise
-
-        if once:
-            return 0
+    return telegram_listener.poll_bot(sys.modules[__name__], config, bot, once, stop_event)
 
 
 def listen(config: Config, once: bool = False) -> int:
-    settings = load_settings()
-    bots = [
-        bot_runtime_from_settings(bot_key, bot_settings)
-        for bot_key, bot_settings in telegram_enabled_bots(settings)
-    ]
-    print(
-        "Telegram listener manager is running for "
-        f"{len(bots)} bot{'s' if len(bots) != 1 else ''}.",
-        flush=True,
-    )
-
-    if once:
-        if not bots:
-            return 0
-        for bot in bots:
-            poll_bot(config, bot, once)
-        return 0
-
-    workers: dict[str, BotWorker] = {}
-
-    def start_worker(bot: BotRuntime) -> None:
-        stop_event = threading.Event()
-        thread = threading.Thread(
-            target=poll_bot,
-            args=(config, bot, False, stop_event),
-            name=f"telegram-listener-{bot.bot_id}",
-            daemon=True,
-        )
-        workers[bot.bot_id] = BotWorker(bot=bot, stop_event=stop_event, thread=thread)
-        thread.start()
-        print(f"[telegram-manager] started {bot.label} ({bot.bot_id})", flush=True)
-
-    def stop_worker(bot_id: str) -> None:
-        worker = workers.pop(bot_id, None)
-        if not worker:
-            return
-        worker.stop_event.set()
-        worker.thread.join(timeout=35)
-        update_bot_runtime_status(worker.bot, "stopped", "Worker stopped.")
-        print(f"[telegram-manager] stopped {worker.bot.label} ({bot_id})", flush=True)
-
-    def reconcile() -> None:
-        latest_settings = load_settings()
-        latest_bots = {
-            bot_key: bot_runtime_from_settings(bot_key, bot_settings)
-            for bot_key, bot_settings in telegram_enabled_bots(latest_settings)
-        }
-        for bot_id in list(workers):
-            latest = latest_bots.get(bot_id)
-            current = workers[bot_id].bot
-            if not latest or bot_runtime_signature(latest) != bot_runtime_signature(current):
-                stop_worker(bot_id)
-
-        for bot_id, bot in latest_bots.items():
-            if bot_id not in workers:
-                start_worker(bot)
-
-    reconcile()
-
-    while True:
-        time.sleep(2)
-        reconcile()
-        for bot_id in list(workers):
-            worker = workers[bot_id]
-            if not worker.thread.is_alive():
-                stop_worker(bot_id)
+    return telegram_listener.listen(sys.modules[__name__], config, once)
 
 
 class ChatConsoleHandler(BaseHTTPRequestHandler):
@@ -5739,12 +5474,17 @@ class ChatConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/avatars/telegram":
             query = parse_qs(parsed.query)
             user_id = str(query.get("user_id", [""])[0]).strip()
+            chat_id = str(query.get("chat_id", [""])[0]).strip()
             bot_id = str(query.get("bot_id", [""])[0]).strip() or None
-            if not user_id:
-                self.send_json({"error": "Missing user_id"}, HTTPStatus.BAD_REQUEST)
+            if not user_id and not chat_id:
+                self.send_json({"error": "Missing user_id or chat_id"}, HTTPStatus.BAD_REQUEST)
                 return
 
-            avatar = telegram_user_avatar(self.config, user_id, bot_id)
+            avatar = (
+                telegram_chat_avatar(self.config, chat_id, bot_id)
+                if chat_id
+                else telegram_user_avatar(self.config, user_id, bot_id)
+            )
             if not avatar:
                 self.send_json({"error": "Avatar not found"}, HTTPStatus.NOT_FOUND)
                 return
@@ -5797,6 +5537,7 @@ class ChatConsoleHandler(BaseHTTPRequestHandler):
             "/api/messages/attachment/delete",
             "/api/messages/delete",
             "/api/settings/allowed-targets",
+            "/api/settings/allowed-targets/remove",
             "/api/settings/messages",
             "/api/settings/messages/refresh",
             "/api/settings/messages/sync",
@@ -6000,6 +5741,35 @@ class ChatConsoleHandler(BaseHTTPRequestHandler):
                 reject_request_target(bot_id, target_type, target_id, self.config)
             except ValueError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
+            self.config = load_config()
+            ChatConsoleHandler.config = self.config
+            payload = state_for_console(self.config)
+            self.broadcaster.broadcast_json(
+                {
+                    "type": "conversation.updated",
+                    "chat_id": "",
+                    "payload": payload,
+                }
+            )
+            self.send_json({"ok": True, "payload": payload})
+            return
+
+        if path == "/api/settings/allowed-targets/remove":
+            service_id = str(body.get("service_id") or "telegram")
+            bot_id = str(body.get("bot_id") or "").strip()
+            target_type = str(body.get("target_type") or body.get("type") or "chat").strip()
+            target_id = str(body.get("target_id") or body.get("id") or "").strip()
+            if service_id != "telegram":
+                self.send_json({"error": "Only telegram is supported for now"}, HTTPStatus.BAD_REQUEST)
+                return
+            try:
+                remove_allowed_target(bot_id, target_type, target_id, self.config)
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
+            except Exception as exc:  # noqa: BLE001
+                self.send_json({"error": safe_error_text(exc)}, HTTPStatus.BAD_GATEWAY)
                 return
             self.config = load_config()
             ChatConsoleHandler.config = self.config
@@ -6583,15 +6353,6 @@ def service_status(service: dict) -> dict:
         "state": state,
         "pid": pid,
     }
-
-
-def format_services_status() -> str:
-    lines = []
-    for service in SERVICES.values():
-        status = service_status(service)
-        pid = f", pid={status['pid']}" if status["pid"] else ""
-        lines.append(f"{status['name']}: {status['state']}{pid}")
-    return "\n".join(lines)
 
 
 def telegram_listener_is_running(settings: dict) -> bool:

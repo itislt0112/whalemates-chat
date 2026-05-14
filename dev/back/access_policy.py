@@ -23,7 +23,8 @@ def access_capabilities_for_role(role: str) -> set[str]:
         "allowed_channel": "admin",
         "bot_admin": "admin",
         "bot_owner": "owner",
-        "channel_owner": "owner",
+        "channel_owner": "admin",
+        "member": "member",
     }
     normalized = legacy_map.get(str(role or "public"), str(role or "public"))
     return set(ACCESS_CAPABILITIES.get(normalized, set()))
@@ -57,7 +58,8 @@ def resolve_bot_access(
             "allowed_channel": "admin",
             "bot_admin": "admin",
             "bot_owner": "owner",
-            "channel_owner": "owner",
+            "channel_owner": "admin",
+            "member": "member",
         }.get(role, role)
         if not record.get("enabled", True):
             return AccessDecision(

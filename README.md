@@ -24,14 +24,17 @@ Communication Services
 │   │   ├── runtime.py       # 当前稳定运行核心
 │   │   ├── access_policy.py # public / allowed / owner 权限判断
 │   │   ├── constants.py     # 文案、Telegram API base、角色能力表
+│   │   ├── *_store.py       # JSON 存储边界
+│   │   ├── telegram_*.py    # Telegram API 与 listener 边界
+│   │   ├── approval_service.py # Requests / approval / allowed target 业务
 │   │   ├── paths.py         # 项目、data、front、LaunchAgent 路径
 │   │   └── README.md        # 后端拆分规划
 │   ├── requirements.txt     # Python 依赖
 │   ├── front/
 │   │   ├── chat.html        # Console HTML 结构
 │   │   ├── styles.css       # CSS 入口，import css/*
-│   │   ├── css/             # 按页面区域拆分的样式
-│   │   └── js/              # 按职责拆分的前端逻辑
+│   │   ├── css/             # 按页面区域拆分的样式，settings model/messages 已独立
+│   │   └── js/              # 按职责拆分的前端逻辑，model / bot worker / Telegram access/message 配置已独立
 ├── launcher/                # Console 启动器脚本
 ├── .env.example             # 非敏感运行参数模板
 └── data/
@@ -67,6 +70,17 @@ cp .env.example .env
 ```
 
 `data/settings.json`、`data/conversations.json`、`data/runtime_status.json` 是本机私有运行态文件。分发给其他用户时保留 `data/.gitkeep` 即可，不要携带真实 token 或聊天历史。
+
+## 生成干净发布目录
+
+发布前可以先运行清理脚本检查发布边界：
+
+```bash
+launcher/release_clean.sh
+launcher/release_clean.sh ./dist/Whalemates\ Chat --apply
+```
+
+生成的发布目录会包含源码、launcher、README、`.env.example` 和 app bundles；会排除 `.env`、`.venv`、`data/*.json`、`data/media`、日志、缓存、DMG/build 输出等本机运行数据。
 
 ## 启动 Console
 
@@ -137,13 +151,14 @@ ws://127.0.0.1:8766/ws
 `Services -> Telegram` 用来配置 bot 的访问权限：
 
 - 选择一个 bot。
-- 管理 Chat / Channel allowlist。
-- 添加后的用户或 channel 默认是 disabled。
+- 管理 User、Group、Channel allowlist。
+- 添加后的 group / channel 默认是 disabled，需要确认启用。
 - enabled target 会收到 `Your personal assistant is online.`。
 - disabled target 会收到 `Your personal assistant is offline.`。
 - enabled target 不能删除，需要先 disable。
 - owner 可以被 disable，但不能删除。
 - 点击 `owner` / `allowed user` 标签可以切换身份，一个 bot 只能有一个 owner。
+- 群里只有 Telegram creator / administrator 可以用 `/apply @bot` 提交申请；批准后只处理明确 `@bot` 的群消息，未 mention 的群消息不会记录、下载附件或调用模型。
 
 Public access 默认关闭。开启后，任何能给该 bot 发消息的人都可以访问这个 bot，除了明确 disabled 的用户或 channel。开启前 Console 会弹出安全确认。
 
@@ -162,7 +177,7 @@ owner           -> message, codex, admin
 
 ## 对话历史
 
-Console 左侧按 `Service -> Bot -> Chat/Channel` 过滤 conversations。
+Console 左侧按 `Service -> Bot -> User/Group/Channel` 过滤 conversations。
 
 对话历史保存在：
 

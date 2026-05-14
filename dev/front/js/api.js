@@ -7,7 +7,8 @@ function addAllowedTarget(value, {
   const target = value.trim();
   if (!target) return;
   draftAllowedTargets ||= { chat: [], channel: [] };
-  const targets = draftAllowedTargets[activeTargetType] || [];
+  const storageType = targetStorageType(activeTargetType);
+  const targets = draftAllowedTargets[storageType] || [];
   if (targets.some((item) => item.id === target)) {
     feedbackEl.textContent = "Already added";
     return;
@@ -15,13 +16,14 @@ function addAllowedTarget(value, {
 
   const confirmed = window.confirm(`Add ${target} as an allowed ${activeTargetType}?`);
   if (!confirmed) return;
-  draftAllowedTargets[activeTargetType] = [
+  draftAllowedTargets[storageType] = [
     ...targets,
     {
       id: target,
-      role: "public",
-      enabled: true,
+      role: activeTargetType === "channel" ? "member" : "public",
+      enabled: activeTargetType === "chat",
       added_at: new Date().toISOString(),
+      ...(activeTargetType === "group" ? { chat_type: "supergroup" } : {}),
     },
   ];
   inputEl.value = "";
@@ -36,6 +38,9 @@ async function setAllowedTargetRole(target, nextRole, {
   if (!target?.id) return false;
 
   const currentRole = normalizeApprovalRole(target.role);
+  if (activeTargetType === "channel" || activeTargetType === "group") {
+    return false;
+  }
   const normalizedNextRole = normalizeApprovalRole(nextRole);
   if (normalizedNextRole === currentRole) {
     showToast(`Successfully set ${target.id}`, "success");
@@ -44,7 +49,7 @@ async function setAllowedTargetRole(target, nextRole, {
   }
 
   draftAllowedTargets ||= { chat: [], channel: [] };
-  const targets = draftAllowedTargets[activeTargetType] || [];
+  const targets = draftAllowedTargets[targetStorageType(activeTargetType)] || [];
   const currentOwner = activeTargetType === "chat"
     ? targets.find((item) => item.id !== target.id && normalizeApprovalRole(item.role) === "owner")
     : null;
@@ -63,7 +68,7 @@ async function setAllowedTargetRole(target, nextRole, {
     return false;
   }
 
-  draftAllowedTargets[activeTargetType] = targets.map((item) => {
+  draftAllowedTargets[targetStorageType(activeTargetType)] = targets.map((item) => {
     if (item.id === target.id) {
       return { ...item, role: normalizedNextRole };
     }
@@ -179,22 +184,53 @@ async function removeAllowedTarget(target, {
   });
 
   try {
+    if (activeTargetType === "channel" || activeTargetType === "group") {
+      feedbackEl.textContent = "Removing...";
+      const response = await fetch("/api/settings/allowed-targets/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: "telegram",
+          bot_id: activeAccessBotId,
+          target_type: activeTargetType === "channel" ? "channel" : "chat",
+          target_id: target.id,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`);
+      }
+      state = result.payload;
+      draftAllowedTargets = null;
+      feedbackEl.textContent = "Removed";
+      showToast(
+        `Removed ${botLabel(activeAccessBotId, activeAccessBot())} from ${activeTargetType === "channel" ? "channel" : "group"}`,
+        "success",
+      );
+      render();
+      if (!telegramBotDetailModal.hidden) {
+        renderTelegramBotDetailModal();
+      }
+      return;
+    }
+
     draftAllowedTargets ||= { chat: [], channel: [] };
-    const currentTargets = draftAllowedTargets[activeTargetType] || [];
+    const storageType = targetStorageType(activeTargetType);
+    const currentTargets = draftAllowedTargets[storageType] || [];
     const disabledTargets = currentTargets.map((item) =>
       item.id === target.id ? { ...item, enabled: false } : item,
     );
     await persistAllowedTargetsToServer(
-      activeTargetType === "chat" ? disabledTargets : draftAllowedTargets.chat || [],
+      storageType === "chat" ? disabledTargets : draftAllowedTargets.chat || [],
       activeTargetType === "channel" ? disabledTargets : draftAllowedTargets.channel || [],
       { disabled_message_key: "approval_removed" },
     );
 
     feedbackEl.textContent = "Removing...";
-    const latestTargets = draftAllowedTargets[activeTargetType] || [];
+    const latestTargets = draftAllowedTargets[storageType] || [];
     const removedTargets = latestTargets.filter((item) => item.id !== target.id);
     await persistAllowedTargetsToServer(
-      activeTargetType === "chat" ? removedTargets : draftAllowedTargets.chat || [],
+      storageType === "chat" ? removedTargets : draftAllowedTargets.chat || [],
       activeTargetType === "channel" ? removedTargets : draftAllowedTargets.channel || [],
       { notify_removed: false },
     );
@@ -220,16 +256,55 @@ async function removeAllowedTarget(target, {
   }
 }
 
+async function toggleAllowedTargetListening(target, enabled, {
+  feedbackEl = settingsFeedback,
+  formEl = allowedTargetForm,
+  listEl = allowedTargets,
+} = {}) {
+  if (!target?.id) return;
+  draftAllowedTargets ||= { chat: [], channel: [] };
+  const storageType = targetStorageType(activeTargetType);
+  const currentTargets = draftAllowedTargets[storageType] || [];
+  draftAllowedTargets[storageType] = currentTargets.map((item) =>
+    item.id === target.id ? { ...item, enabled: Boolean(enabled) } : item,
+  );
+  await saveAllowedTargetsToServer({ feedbackEl, formEl, listEl });
+}
+
 async function updateConversationTargetAccess(chat, { enabled, remove = false } = {}) {
   if (!chat || !activeHomeBotId) return;
 
   const bot = homeBots(activeHomeServiceId).find(([id]) => id === activeHomeBotId)?.[1];
-  const targetType = homeConversationKind(chat) === "channel" ? "channel" : "chat";
+  const kind = homeConversationKind(chat);
+  const targetType = kind === "channel" ? "channel" : "chat";
   const key = targetType === "channel" ? "channels" : "chats";
   const currentChats = normalizeTargetRecords(bot?.allowed?.chats || [], "chat");
   const currentChannels = normalizeTargetRecords(bot?.allowed?.channels || [], "channel");
   const targets = targetType === "channel" ? currentChannels : currentChats;
   const targetId = String(chat.target_id || chat.uid || chat.id);
+  if (remove && (kind === "channel" || kind === "group")) {
+    const response = await fetch("/api/settings/allowed-targets/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id: activeHomeServiceId,
+        bot_id: activeHomeBotId,
+        target_type: targetType,
+        target_id: targetId,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
+    state = result.payload;
+    if (activeChatId === chat.id) {
+      activeChatId = null;
+    }
+    updateStatus(currentConnectionState());
+    render();
+    return;
+  }
   const existing = targets.find((item) => String(item.id) === targetId);
   const fallbackRole = targetType === "chat" ? "public" : "admin";
   const nextTarget = {
@@ -237,6 +312,7 @@ async function updateConversationTargetAccess(chat, { enabled, remove = false } 
     role: existing?.role || fallbackRole,
     enabled: enabled ?? existing?.enabled ?? true,
     added_at: existing?.added_at || new Date().toISOString(),
+    ...(kind === "group" ? { chat_type: chat.chat_type || "supergroup", title: chat.title || chat.target_label || "" } : {}),
   };
   const nextTargets = remove
     ? targets.filter((item) => String(item.id) !== targetId)
@@ -347,10 +423,6 @@ async function updateServiceConfig(serviceId, changes) {
   } catch (error) {
     serviceConfigFeedback.textContent = `Save failed: ${error.message}`;
   }
-}
-
-async function updateTelegramService(changes) {
-  return updateServiceConfig("telegram", changes);
 }
 
 async function saveMessageSettings() {
@@ -616,6 +688,7 @@ async function loadRequests({ append = false } = {}) {
       throw new Error(result.error || `HTTP ${response.status}`);
     }
     requestsToolbar.hidden = false;
+    updateRequestPendingCount(activeRequestsType, result.total || 0);
     renderRequests(result.items || [], { append });
     requestsHasMore = Boolean(result.has_more);
     requestsLoadMore.hidden = true;

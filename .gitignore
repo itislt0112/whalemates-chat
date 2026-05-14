@@ -5,6 +5,9 @@ __pycache__/
 *.pyc
 *.log
 *.pid
+*.dmg
+build/
+dist/
 data/*.json
 data/*
 !data/.gitkeep

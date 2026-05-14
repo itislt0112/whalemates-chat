@@ -418,6 +418,14 @@
   column-gap: 8px;
 }
 
+.bot-detail-access-card .request-item {
+  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  justify-content: stretch;
+  column-gap: 8px;
+}
+
 .requests-list .request-row-main {
   align-items: center;
   display: flex;
@@ -672,6 +680,93 @@
 .target-time {
   color: #929b93;
   font-size: 11px;
+}
+
+.target-filter-bar {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.target-filter-group {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.target-filter-group.access {
+  flex: 0 0 auto;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.target-filter-chip {
+  appearance: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--muted) 20%, var(--line));
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  padding: 6px 9px;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.target-filter-chip:hover {
+  background: color-mix(in srgb, var(--brand-purple) 8%, var(--panel));
+  border-color: color-mix(in srgb, var(--brand-purple) 28%, var(--line));
+  color: var(--ink);
+}
+
+.target-filter-chip.active {
+  background: color-mix(in srgb, var(--brand-purple) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--brand-purple) 42%, var(--line));
+  color: var(--brand-purple);
+}
+
+.target-filter-select {
+  appearance: none;
+  background:
+    linear-gradient(45deg, transparent 50%, currentColor 50%) right 12px center / 5px 5px no-repeat,
+    linear-gradient(135deg, currentColor 50%, transparent 50%) right 8px center / 5px 5px no-repeat,
+    color-mix(in srgb, var(--surface-soft) 56%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--muted) 88%, var(--ink));
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
+  min-height: 28px;
+  padding: 6px 24px 6px 10px;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.target-filter-select:hover,
+.target-filter-select:focus {
+  background-color: color-mix(in srgb, var(--brand-purple) 7%, var(--panel));
+  border-color: color-mix(in srgb, var(--brand-purple) 28%, var(--line));
+  color: var(--ink);
+}
+
+.target-filter-select:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .target-label {
@@ -1785,16 +1880,6 @@ button.target-label:active {
     padding: 16px;
   }
 
-  .chat-list {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-  }
-
-  .chat-button {
-    min-width: 220px;
-  }
-
   .topbar {
     padding: 14px 16px;
   }
@@ -1815,11 +1900,6 @@ button.target-label:active {
     justify-content: flex-start;
   }
 
-  .system-jump {
-    flex-wrap: wrap;
-    max-width: 94%;
-    padding: 6px 10px;
-  }
 }
 
 /* Whalemates chat component theme overrides */
@@ -2203,10 +2283,6 @@ button.target-label:active {
 
   .messages {
     min-height: 0;
-  }
-
-  .chat-list[hidden] {
-    display: none;
   }
 
   .manual-composer {

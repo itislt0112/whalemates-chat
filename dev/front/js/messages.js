@@ -11,35 +11,7 @@ const imageViewerSave = document.querySelector("#imageViewerSave");
 const imageViewerDelete = document.querySelector("#imageViewerDelete");
 let imageGalleryItems = [];
 let activeImageGalleryIndex = -1;
-
-function createStatusPill(status) {
-  const pill = document.createElement("span");
-  pill.className = "status-pill";
-  pill.textContent = statusLabel(status);
-  return pill;
-}
-
-function createMetaText(parts) {
-  const row = document.createElement("span");
-  row.className = "meta-row";
-
-  const visibleParts = parts.filter((part) => part.text);
-  visibleParts.forEach((part, index) => {
-    if (index > 0) {
-      const dot = document.createElement("span");
-      dot.className = "meta-dot";
-      dot.textContent = "·";
-      row.append(dot);
-    }
-
-    const item = document.createElement("span");
-    item.className = `meta-${part.tone || "primary"}`;
-    item.textContent = part.text;
-    row.append(item);
-  });
-
-  return row;
-}
+const telegramAvatarUrlCache = new Map();
 
 function isChannelConversation(chat, turn) {
   const chatType = String(turn?.target?.chat_type || "").trim();
@@ -143,8 +115,15 @@ function createMessageAvatar(turn, activeChatId, fallbackBotId) {
   img.alt = "";
   img.loading = "lazy";
   img.decoding = "async";
-  img.src = `/api/avatars/telegram?user_id=${encodeURIComponent(senderId)}&bot_id=${encodeURIComponent(botId || "default")}`;
+  const cacheKey = `${botId || "default"}:${senderId}`;
+  const avatarUrl = telegramAvatarUrlCache.get(cacheKey)
+    || `/api/avatars/telegram?user_id=${encodeURIComponent(senderId)}&bot_id=${encodeURIComponent(botId || "default")}`;
+  img.src = avatarUrl;
+  if (telegramAvatarUrlCache.has(cacheKey)) {
+    avatar.classList.add("has-image");
+  }
   img.addEventListener("load", () => {
+    telegramAvatarUrlCache.set(cacheKey, img.src);
     avatar.classList.add("has-image");
   });
   img.addEventListener("error", () => {
@@ -589,11 +568,6 @@ function selectAllMessages(turns) {
   renderMessages();
 }
 
-function clearSelectedMessages() {
-  selectedMessageIndexes = new Set();
-  renderMessages();
-}
-
 function selectedTurns(turns) {
   return [...selectedMessageIndexes]
     .sort((left, right) => left - right)
@@ -615,6 +589,31 @@ function activeMessagePage(chatId = activeChatId) {
     loaded: (state.messages?.[chatId] || []).length,
     has_more: false,
   };
+}
+
+function messageSignature(turns, page) {
+  const lastTurn = turns[turns.length - 1] || {};
+  return [
+    page?.total ?? turns.length,
+    page?.start ?? 0,
+    turns.length,
+    lastTurn.created_at || "",
+    lastTurn.role || "",
+    lastTurn.telegram_message_id || "",
+    lastTurn.content || "",
+  ].join("|");
+}
+
+function messageUiSignature(messageDataSignature) {
+  const selectionSignature = messageSelectionMode
+    ? [...selectedMessageIndexes].sort((left, right) => left - right).join(",")
+    : "";
+  return [
+    messageDataSignature,
+    messageSelectionMode ? "select" : "read",
+    selectionSignature,
+    loadingOlderMessages ? "loading-older" : "",
+  ].join("|");
 }
 
 function displayIndexToHistoryIndex(index, chatId = activeChatId) {
@@ -956,8 +955,10 @@ function clearChatHeader() {
 function renderMessages() {
   const turns = state.messages[activeChatId] || [];
   const messagePage = activeMessagePage(activeChatId);
+  const currentSignature = messageSignature(turns, messagePage);
   const messageStartIndex = Number(messagePage.start || 0);
   const isInitialChatRender = activeChatId !== lastRenderedChatId;
+  const hasMessageChanges = currentSignature !== lastRenderedMessageSignature;
   if (isInitialChatRender) {
     resetMessageSelection();
     manualComposerFilesDraft = [];
@@ -967,11 +968,23 @@ function renderMessages() {
   }
   renderManualComposer();
   syncMessageSelection(turns);
+  const currentUiSignature = messageUiSignature(currentSignature);
+  const canReuseMessageDom =
+    !isInitialChatRender
+    && !hasMessageChanges
+    && currentUiSignature === lastRenderedMessageUiSignature
+    && !forceScrollMessagesToBottom
+    && !preserveMessageScrollPosition;
+  if (canReuseMessageDom) {
+    requestAnimationFrame(updateMessageJumpActions);
+    return;
+  }
   const shouldAutoScroll =
     !preserveMessageScrollPosition && (
       forceScrollMessagesToBottom ||
       isInitialChatRender ||
       turns.length > lastRenderedTurnCount ||
+      hasMessageChanges ||
       isNearBottom()
     );
 
@@ -994,8 +1007,6 @@ function renderMessages() {
       action.disabled = true;
       action.textContent = "to be release";
       empty.append(lineOne, lineTwo, action);
-      activeTitle.textContent = "Lark is not configured";
-      activeMeta.textContent = "No Lark listener is available";
     } else {
       const lineOne = document.createElement("div");
       const activeBot = homeBots(activeHomeServiceId).find(([botId]) => botId === activeHomeBotId)?.[1];
@@ -1004,47 +1015,18 @@ function renderMessages() {
       const lineTwo = document.createElement("div");
       lineTwo.textContent = "The conversation will appear here automatically.";
       empty.append(lineOne, lineTwo);
-      activeTitle.textContent = "No conversation selected";
-      activeMeta.textContent = "Waiting for Telegram messages";
     }
     messages.append(empty);
+    lastRenderedChatId = activeChatId;
+    lastRenderedTurnCount = turns.length;
+    lastRenderedMessageSignature = currentSignature;
+    lastRenderedMessageUiSignature = currentUiSignature;
     return;
   }
 
   const chat = state.chats.find((item) => item.id === activeChatId);
   imageGalleryItems = collectImageGallery(turns, chat, messageStartIndex);
-  activeTitle.innerHTML = "";
-  if (chat?.user_status) {
-    activeTitle.append(createStatusPill(chat.user_status));
-  }
 
-  const titleText = document.createElement("span");
-  titleText.className = "active-title-text";
-  titleText.textContent = chat?.target_label || `Chat: ${activeChatId}`;
-  activeTitle.append(titleText);
-
-  if (chat?.uid || activeChatId) {
-    const dot = document.createElement("span");
-    dot.className = "meta-dot";
-    dot.textContent = "·";
-    const uid = document.createElement("span");
-    uid.className = "active-title-uid";
-    uid.textContent = chat?.uid || activeChatId;
-    activeTitle.append(dot, uid);
-  }
-
-  const contextLabel = botContextLabel(chat);
-  if (contextLabel) {
-    const botLabelPill = document.createElement("span");
-    botLabelPill.className = "bot-context-label";
-    const dot = createBotStateDot(botContextState(chat));
-    const label = document.createElement("span");
-    label.textContent = contextLabel;
-    botLabelPill.append(dot, label);
-    activeTitle.append(botLabelPill);
-  }
-  activeMeta.innerHTML = "";
-  activeMeta.className = "identity-line";
   createSelectionToolbar(turns, chat);
 
   if (messagePage.has_more) {
@@ -1147,6 +1129,8 @@ function renderMessages() {
 
   lastRenderedChatId = activeChatId;
   lastRenderedTurnCount = turns.length;
+  lastRenderedMessageSignature = currentSignature;
+  lastRenderedMessageUiSignature = currentUiSignature;
 
   if (shouldAutoScroll) {
     scrollMessagesToBottom();
@@ -1230,47 +1214,6 @@ manualComposerDrop.addEventListener("dragover", (event) => {
     renderManualComposer();
   });
 });
-
-function createSystemJump(position) {
-  const container = document.createElement("div");
-  container.className = `system-jump ${position}`;
-
-  if (position === "top") {
-    const copy = document.createElement("span");
-    copy.className = "system-copy";
-    copy.textContent = "Already at the top";
-
-    const actions = document.createElement("div");
-    actions.className = "system-actions";
-    actions.append(createSystemAction("View latest", scrollMessagesToBottom));
-
-    container.append(copy, actions);
-  } else {
-    const copy = document.createElement("span");
-    copy.className = "system-copy";
-    copy.textContent = "All content loaded";
-
-    const actions = document.createElement("div");
-    actions.className = "system-actions";
-    actions.append(
-      createSystemAction("Back to top", scrollMessagesToTop),
-      createSystemAction("Refresh", loadConversations),
-    );
-
-    container.append(copy, actions);
-  }
-
-  return container;
-}
-
-function createSystemAction(label, onClick) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "system-action";
-  button.textContent = label;
-  button.addEventListener("click", onClick);
-  return button;
-}
 
 function render() {
   renderChatList();

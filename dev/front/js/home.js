@@ -101,27 +101,36 @@ function botActionIcon(name) {
         <path d="M4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
       </svg>
     `,
+    groups: `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M17 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M7 21v-2a4 4 0 0 1 3-3.87"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+        <path d="M5 8a3 3 0 1 0 0 6"></path>
+        <path d="M19 8a3 3 0 1 1 0 6"></path>
+      </svg>
+    `,
   };
   return icons[name] || "";
 }
 
-function homeRequestPendingCount(botId) {
+function homeUserRequestPendingCount(botId) {
   const counts = state.settings?.telegram_request_counts || {};
-  return Number(counts?.[botId]?.total || 0);
+  return Number(counts?.[botId]?.chat || 0);
 }
 
 function homeFormatRequestCount(count) {
   return count > 99 ? "99+" : String(count);
 }
 
-function createBotActionButton({ icon, label, onClick, quiet = false, pendingCount = null }) {
+function createBotActionButton({ icon, label, onClick, quiet = false, pendingCount = null, newBadge = false }) {
   const hasPendingCount = Number.isFinite(pendingCount);
   const pendingLabel = hasPendingCount ? homeFormatRequestCount(pendingCount) : "";
   const button = document.createElement("button");
-  button.className = `home-bot-action-item ${quiet ? "quiet" : ""} ${hasPendingCount ? `has-request-pill ${pendingCount > 0 ? "request-active" : "request-empty"}` : ""}`;
+  button.className = `home-bot-action-item ${quiet ? "quiet" : ""} ${hasPendingCount ? `has-request-pill ${pendingCount > 0 ? "request-active" : "request-empty"}` : ""} ${newBadge ? "has-new-pill" : ""}`;
   button.type = "button";
   button.title = label;
-  button.setAttribute("aria-label", hasPendingCount ? `${label}: ${pendingLabel}` : label);
+  button.setAttribute("aria-label", newBadge ? `${label}: new item` : hasPendingCount ? `${label}: ${pendingLabel}` : label);
   if (hasPendingCount) {
     button.dataset.requestCount = pendingLabel;
   }
@@ -141,20 +150,35 @@ function renderHomeConversationManageButton() {
   homeConversationManageButton.textContent = "manage";
 }
 
-function createRemoveConversationCopy(label, targetTypeLabel, isEnabled) {
+function targetRemoveDisplayName(target) {
+  const username = String(target?.username || target?.target_username || "").trim();
+  if (username) return username.startsWith("@") ? username : `@${username}`;
+  return String(target?.title || target?.id || "").trim() || "this target";
+}
+
+function createRemoveConversationCopy(target, targetTypeLabel, isEnabled, botName = "This bot") {
   const wrap = document.createElement("div");
   wrap.className = "choice-bullet-copy";
 
+  const isGroupChannel = targetTypeLabel === "channel" || targetTypeLabel === "group";
+  const label = typeof target === "object" ? targetRemoveDisplayName(target) : String(target || "");
   const intro = document.createElement("p");
-  intro.textContent = `${label} will be removed from this bot.`;
+  intro.textContent = isGroupChannel
+    ? `${botName} will be removed from this ${targetTypeLabel} ${label}.`
+    : `${label} will be removed from this bot.`;
 
   const list = document.createElement("ul");
-  const subject = targetTypeLabel === "channel" ? "Channels" : "Users";
-  const items = [
-    `${subject} will be removed from this bot's approval list.`,
-    "Historical conversation will be deleted.",
-    `An update message will be sent to the ${targetTypeLabel === "channel" ? "channel" : "user"}.`,
-  ];
+  const subject = targetTypeLabel === "channel" ? "Channels" : targetTypeLabel === "group" ? "Groups" : "Users";
+  const items = isGroupChannel
+    ? [
+        `The bot will leave this Telegram ${targetTypeLabel}.`,
+        "All conversation history stored locally will be deleted.",
+      ]
+    : [
+        `${subject} will be removed from this bot's approval list.`,
+        "Historical conversation will be deleted.",
+        `An update message will be sent to the ${targetTypeLabel === "channel" ? "channel" : targetTypeLabel === "group" ? "group" : "user"}.`,
+      ];
   for (const text of items) {
     const item = document.createElement("li");
     item.textContent = text;
@@ -182,7 +206,8 @@ function createConversationAvatar(chat) {
   fallback.textContent = avatarInitialForChat(chat);
   avatar.append(fallback);
 
-  if (chat?.uid) {
+  const avatarUrl = conversationAvatarUrl(chat);
+  if (avatarUrl) {
     const img = new Image();
     img.onload = () => {
       avatar.classList.add("has-image");
@@ -192,7 +217,7 @@ function createConversationAvatar(chat) {
       avatar.classList.remove("has-image");
       avatar.style.backgroundImage = "";
     };
-    img.src = `/api/avatars/telegram?user_id=${encodeURIComponent(chat.uid)}&bot_id=${encodeURIComponent(chat.bot_id || activeHomeBotId || "default")}`;
+    img.src = avatarUrl;
   }
 
   return avatar;
@@ -204,11 +229,20 @@ function renderHomeConversationMenuOptions(chats) {
     const empty = document.createElement("div");
     empty.className = "home-conversation-menu-empty";
     const title = document.createElement("strong");
-    title.textContent = homeConversationFilter.trim()
-      ? "No conversations match your search."
-      : `No ${activeHomeConversationKind === "channel" ? "channels" : activeHomeConversationKind === "chat" ? "chats" : "conversations"} with this bot yet.`;
     const copy = document.createElement("span");
-    copy.textContent = "Drop a message to begin.";
+    if (homeConversationFilter.trim()) {
+      title.textContent = "No conversations match your search.";
+      copy.textContent = "Try another keyword.";
+    } else if (activeHomeConversationKind === "channel") {
+      title.textContent = "No channel with this bot added yet.";
+      copy.textContent = "Add this bot to a channel to discover more.";
+    } else if (activeHomeConversationKind === "group") {
+      title.textContent = "No group with this bot added yet.";
+      copy.textContent = "Add this bot to a group to discover more.";
+    } else {
+      title.textContent = "No chats with this bot yet.";
+      copy.textContent = "Drop a message to begin.";
+    }
     empty.append(title, copy);
     homeConversationMenuOptions.append(empty);
     return;
@@ -223,7 +257,8 @@ function renderHomeConversationMenuOptions(chats) {
     const selectChat = () => {
       activeChatId = chat.id;
       homeConversationFilterMenuOpen = false;
-      render();
+      renderChatList();
+      renderMessages();
     };
     option.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
@@ -243,12 +278,11 @@ function renderHomeConversationMenuOptions(chats) {
 
     const title = document.createElement("span");
     title.className = "home-conversation-menu-title";
-    title.textContent = chat.target_label || `Chat: ${chat.id}`;
+    title.append(createConversationTitleFragment(chat));
 
     const meta = document.createElement("span");
     meta.className = "home-conversation-menu-meta";
-    const kindLabel = homeConversationKind(chat) === "channel" ? "Channel" : "Chat";
-    meta.textContent = `${kindLabel} · ${formatTime(chat.updated_at)}`;
+    meta.append(createConversationBotMeta(chat));
 
     text.append(title, meta);
     content.append(createConversationAvatar(chat), text);
@@ -287,11 +321,23 @@ function renderHomeConversationMenuOptions(chats) {
   }
 }
 
+function renderHomeConversationDropdown() {
+  const botChats = state.chats.filter((chat) => chatBelongsToBot(chat, activeHomeBotId));
+  ensureHomeConversationKind(botChats);
+  renderHomeConversationFilters(botChats);
+  const normalizedConversationFilter = normalizeSearchText(homeConversationFilter);
+  const visibleConversationOptions = botChats.filter((chat) => {
+    const matchesKind = homeConversationKind(chat) === activeHomeConversationKind;
+    const matchesSearch = !normalizedConversationFilter || homeConversationSearchText(chat).includes(normalizedConversationFilter);
+    return matchesKind && matchesSearch;
+  });
+  renderHomeConversationMenuOptions(visibleConversationOptions);
+}
+
 function renderChatList() {
-  chatList.innerHTML = "";
   homeConversationMenuOptions.innerHTML = "";
   homeConversationPanel.hidden = activeHomeServiceId !== "telegram";
-  const visibleChats = syncHomeSelection();
+  syncHomeSelection();
 
   homeServiceNav.innerHTML = "";
   for (const [serviceId, service] of homeServices()) {
@@ -308,12 +354,13 @@ function renderChatList() {
       }
       activeHomeBotId = "";
       activeChatId = null;
-      activeHomeConversationKind = "all";
+      activeHomeConversationKind = "chat";
       homeConversationAccessFilter = "enabled";
       homeConversationFilterMenuOpen = false;
       homeConversationFilter = "";
       homeConversationSearch.value = "";
-      render();
+      renderChatList();
+      renderMessages();
     });
     homeServiceNav.append(button);
   }
@@ -342,11 +389,6 @@ function renderChatList() {
     homeEmptyBotCard.hidden = homeBots(activeHomeServiceId).length > 0;
     renderHomeConversationFilters([]);
     setHomeBotMenu(false);
-
-    const empty = document.createElement("div");
-    empty.className = "home-service-empty";
-    empty.textContent = "Lark service is not configured yet.";
-    chatList.append(empty);
     return;
   }
 
@@ -462,7 +504,8 @@ function renderChatList() {
           }),
           createBotActionButton({
             icon: "people",
-            label: "添加/删除人",
+            label: "User",
+            pendingCount: homeUserRequestPendingCount(botId),
             onClick: () => {
               setHomeBotMenu(false);
               activeTargetType = "chat";
@@ -470,15 +513,22 @@ function renderChatList() {
             },
           }),
           createBotActionButton({
-            icon: "requests",
-            label: "Pending Request",
+            icon: "groups",
+            label: "Groups / Channels",
             quiet: true,
-            pendingCount: homeRequestPendingCount(botId),
+            newBadge: hasNewGroupChannelTargets(botId),
             onClick: () => {
               setHomeBotMenu(false);
+              const latestNewTarget = newGroupChannelTargets(botId)
+                .sort((a, b) => new Date(b.target?.added_at || 0) - new Date(a.target?.added_at || 0))[0] || null;
               activeAccessBotId = botId;
-              activeTargetType = "chat";
-              openRequestsModal();
+              activeTargetType = latestNewTarget?.type || "group";
+              openTelegramBotDetailModal(botId, {
+                focus: "group-channel",
+                highlightTarget: latestNewTarget
+                  ? { type: latestNewTarget.type, id: String(latestNewTarget.target.id) }
+                  : null,
+              });
             },
           }),
         );
@@ -488,208 +538,19 @@ function renderChatList() {
     }
   }
 
-  renderHomeConversationMenuOptions([]);
-
   if (!bots.length) {
-    const empty = document.createElement("div");
-    empty.className = "status";
-    empty.style.padding = "14px 12px";
-    empty.textContent = "No bot configured yet. Open Settings to add one.";
-    chatList.append(empty);
+    renderHomeConversationMenuOptions([]);
     return;
   }
 
   const allBotChats = state.chats.filter((chat) => chatBelongsToBot(chat, activeHomeBotId));
+  ensureHomeConversationKind(allBotChats);
 
   const normalizedConversationFilter = normalizeSearchText(homeConversationFilter);
   const visibleConversationOptions = allBotChats.filter((chat) => {
-    const matchesKind = activeHomeConversationKind === "all" || homeConversationKind(chat) === activeHomeConversationKind;
+    const matchesKind = homeConversationKind(chat) === activeHomeConversationKind;
     const matchesSearch = !normalizedConversationFilter || homeConversationSearchText(chat).includes(normalizedConversationFilter);
     return matchesKind && matchesSearch;
   });
   renderHomeConversationMenuOptions(visibleConversationOptions);
-
-  if (chatList.hidden) {
-    return;
-  }
-
-  function createAccessFilter() {
-    const filter = document.createElement("div");
-    filter.className = "conversation-access-filter";
-    filter.setAttribute("aria-label", "Filter conversations by access state");
-    for (const [value, label] of [["enabled", "Enabled"], ["disabled", "Disabled"]]) {
-      const button = document.createElement("button");
-      button.className = `conversation-access-filter-button ${homeConversationAccessFilter === value ? "active" : ""}`;
-      button.type = "button";
-      button.textContent = label;
-      button.setAttribute("aria-pressed", String(homeConversationAccessFilter === value));
-      button.addEventListener("click", () => {
-        homeConversationAccessFilter = value;
-        activeChatId = null;
-        render();
-      });
-      filter.append(button);
-    }
-    return filter;
-  }
-
-  function createConversationManageAction(groupKey, label) {
-    const action = document.createElement("button");
-    action.className = "conversation-drawer-manage";
-    action.type = "button";
-    action.textContent = "manage";
-    action.setAttribute("aria-label", `Manage ${label}`);
-    action.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openActiveBotAllowlist(groupKey);
-    });
-    return action;
-  }
-
-  function createConversationEmpty(kind) {
-    const empty = document.createElement("div");
-    empty.className = "conversation-drawer-empty";
-    const title = document.createElement("strong");
-    title.textContent = `No ${kind === "channel" ? "channels" : "chats"} with this bot yet.`;
-    const copy = document.createElement("span");
-    copy.textContent = "Drop a message to begin.";
-    empty.append(title, copy);
-    return empty;
-  }
-
-  function createConversationButton(chat) {
-    const button = document.createElement("div");
-    button.setAttribute("role", "button");
-    button.tabIndex = 0;
-    button.className = `chat-button ${chat.id === activeChatId ? "active" : ""}`;
-    const selectConversation = () => {
-      activeChatId = chat.id;
-      render();
-    };
-    button.addEventListener("click", selectConversation);
-    button.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      selectConversation();
-    });
-
-    const title = document.createElement("div");
-    title.className = "chat-title";
-    title.textContent = chat.target_label || `Chat: ${chat.id}`;
-
-    const titleRow = document.createElement("div");
-    titleRow.className = "chat-title-row";
-    titleRow.append(title, createStatusPill(chat.user_status));
-
-    const footerRow = document.createElement("div");
-    footerRow.className = "chat-footer-row";
-
-    const deleteButton = document.createElement("button");
-    deleteButton.className = "chat-delete";
-    deleteButton.type = "button";
-    deleteButton.title = "Delete conversation";
-    deleteButton.setAttribute("aria-label", `Delete ${chat.target_label || chat.id}`);
-    deleteButton.innerHTML = `
-      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 6h18"></path>
-        <path d="M8 6V4h8v2"></path>
-        <path d="M19 6l-1 14H6L5 6"></path>
-        <path d="M10 11v5"></path>
-        <path d="M14 11v5"></path>
-      </svg>
-    `;
-    deleteButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openDeleteConversationChoice(chat);
-    });
-
-    const metaRow = document.createElement("div");
-    metaRow.className = "chat-meta-row";
-    metaRow.append(
-      createMetaText([
-        { text: formatTime(chat.updated_at), tone: "tertiary" },
-      ]),
-    );
-
-    footerRow.append(metaRow, deleteButton);
-    button.append(titleRow, footerRow);
-    return button;
-  }
-
-  const allChatConversations = allBotChats.filter((chat) => homeConversationKind(chat) === "chat");
-  const allChannelConversations = allBotChats.filter((chat) => homeConversationKind(chat) === "channel");
-  const chatConversations = allChatConversations.filter((chat) => conversationAccessKind(chat) === homeConversationAccessFilter);
-  const channelConversations = allChannelConversations.filter((chat) => conversationAccessKind(chat) === homeConversationAccessFilter);
-  const groups = [
-    ["chat", "Chat List", "chat", allChatConversations, chatConversations],
-    ["channel", "Channel List", "channel", allChannelConversations, channelConversations],
-  ];
-
-  for (const [groupKey, label, singular, allChats, chats] of groups) {
-    const group = document.createElement("section");
-    group.className = "conversation-drawer";
-
-    const header = document.createElement("div");
-    header.className = "conversation-drawer-head";
-    header.setAttribute("aria-expanded", String(homeConversationGroupsOpen[groupKey] !== false));
-
-    const toggleDrawer = () => {
-      homeConversationGroupsOpen[groupKey] = homeConversationGroupsOpen[groupKey] === false;
-      renderChatList();
-    };
-
-    const toggle = document.createElement("button");
-    toggle.className = "conversation-drawer-toggle";
-    toggle.type = "button";
-    toggle.setAttribute("aria-expanded", String(homeConversationGroupsOpen[groupKey] !== false));
-    toggle.addEventListener("click", toggleDrawer);
-
-    const title = document.createElement("span");
-    title.className = "conversation-drawer-title";
-    title.textContent = label;
-
-    const countText = document.createElement("span");
-    countText.className = "conversation-drawer-count-text";
-    countText.textContent = `(${allChats.length} ${allChats.length === 1 ? singular : `${singular}s`})`;
-
-    const titleGroup = document.createElement("span");
-    titleGroup.className = "conversation-drawer-title-group";
-
-    const manage = createConversationManageAction(groupKey, label);
-
-    titleGroup.append(title, countText);
-    toggle.append(titleGroup);
-
-    const caretButton = document.createElement("button");
-    caretButton.className = "conversation-drawer-caret-button";
-    caretButton.type = "button";
-    caretButton.setAttribute("aria-label", `${homeConversationGroupsOpen[groupKey] === false ? "Expand" : "Collapse"} ${label}`);
-    caretButton.addEventListener("click", toggleDrawer);
-
-    const caret = document.createElement("span");
-    caret.className = "conversation-drawer-caret";
-    caret.setAttribute("aria-hidden", "true");
-    caretButton.append(caret);
-
-    header.append(toggle, manage, caretButton);
-    group.append(header);
-
-    if (homeConversationGroupsOpen[groupKey] !== false) {
-      const body = document.createElement("div");
-      body.className = "conversation-drawer-body";
-      if (groupKey === "chat") {
-        body.append(createAccessFilter());
-      }
-      if (chats.length) {
-        for (const chat of chats) {
-          body.append(createConversationButton(chat));
-        }
-      } else {
-        body.append(createConversationEmpty(groupKey));
-      }
-      group.append(body);
-    }
-
-    chatList.append(group);
-  }
 }

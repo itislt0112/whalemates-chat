@@ -1,12 +1,3 @@
-function openSettings() {
-  restoreSettingsPlaceholder();
-  accessControlManageFocus = false;
-  activeMessageServiceId = "telegram";
-  activeSettingsView = "messages-telegram-command-flows";
-  renderSettings();
-  settingsModal.hidden = false;
-}
-
 function openActiveServiceMessages() {
   restoreSettingsPlaceholder();
   accessControlManageFocus = false;
@@ -139,7 +130,7 @@ function closeLarkBotWorkersModal() {
   larkBotWorkersModal.hidden = true;
 }
 
-function openTelegramBotDetailModal(botId, { focus = "settings" } = {}) {
+function openTelegramBotDetailModal(botId, { focus = "settings", highlightTarget = null } = {}) {
   const bots = telegramBots();
   if (!botId || !bots[botId]) return;
 
@@ -147,6 +138,16 @@ function openTelegramBotDetailModal(botId, { focus = "settings" } = {}) {
   activeServiceBotId = botId;
   activeAccessBotId = botId;
   telegramDetailFocus = focus;
+  telegramDetailListTab = "approvals";
+  telegramDetailRequestItems = [];
+  telegramDetailRequestsLoading = false;
+  telegramDetailRequestsLoadedFor = "";
+  pendingGroupChannelHighlight = highlightTarget;
+  if (focus === "approval") {
+    activeTargetType = "chat";
+  } else if (focus === "group-channel") {
+    activeTargetType = highlightTarget?.type || (activeTargetType === "channel" ? "channel" : "group");
+  }
   draftAllowedTargets = null;
   telegramDetailAccessFeedback.textContent = "";
   renderTelegramBotDetailModal();
@@ -160,6 +161,7 @@ function closeTelegramBotDetailModal() {
   telegramBotDetailModal.hidden = true;
   activeServiceBotId = "";
   telegramDetailFocus = "";
+  render();
 }
 
 function openLarkBotDetailModal(botId = "") {
@@ -223,21 +225,21 @@ function openRoleChoice({
   roleChoiceCancel.className = `choice-action ${defaultAction === "cancel" ? "primary" : "secondary"}`;
   roleChoiceExtra.className = `choice-action ${defaultAction === "extra" ? "primary" : "secondary"}`;
   roleChoiceConfirm.hidden = !confirmLabel || !onConfirm;
-  roleChoiceCancel.hidden = !cancelLabel || !onCancel;
+  roleChoiceCancel.hidden = !cancelLabel;
   roleChoiceExtra.hidden = !extraLabel || !onExtra;
   roleChoiceExtra.textContent = extraLabel;
   pendingRoleChoice = onConfirm;
   pendingExtraChoice = onExtra;
   pendingCancelChoice = onCancel;
-  roleChoiceClose.classList.add("is-default-focus");
+  roleChoiceClose.classList.toggle("is-default-focus", defaultAction === "close");
   roleChoiceModal.hidden = false;
   requestAnimationFrame(() => {
-    if (roleChoiceClose) {
-      roleChoiceClose.focus();
-    } else if (defaultAction === "cancel") {
+    if (defaultAction === "cancel" && !roleChoiceCancel.hidden) {
       roleChoiceCancel.focus();
     } else if (defaultAction === "extra" && !roleChoiceExtra.hidden) {
       roleChoiceExtra.focus();
+    } else if (defaultAction === "close" && roleChoiceClose) {
+      roleChoiceClose.focus();
     } else {
       roleChoiceConfirm.focus();
     }
@@ -285,7 +287,11 @@ function switchSettingsView(view) {
 function switchServiceConfigTab(tab) {
   activeServiceConfigTab = tab;
   serviceConfigFeedback.textContent = "";
-  renderSettings();
+  if (!settingsModal.hidden && activeSettingsView === "service") {
+    renderServiceConfiguration();
+  } else {
+    renderSettings();
+  }
 }
 
 function modelProviderFromRouteProvider(provider = "") {
@@ -295,21 +301,6 @@ function modelProviderFromRouteProvider(provider = "") {
   if (normalized === "ollama") return "ollama";
   if (normalized === "deepseek") return "deepseek";
   return "openai";
-}
-
-function openModelConfigurationFromRoute(provider = "", mode = "") {
-  restoreSettingsPlaceholder();
-  activeSettingsView = "model";
-  activeModelProvider = modelProviderFromRouteProvider(provider);
-  activeModelMode = mode || "";
-  expandedModelMode = "";
-  editingModelMode = "";
-  accessControlManageFocus = false;
-  settingsFeedback.textContent = "";
-  serviceConfigFeedback.textContent = "";
-  settingsModal.hidden = false;
-  renderSettings();
-  scrollSettingsTarget(settingsPlaceholder, "start");
 }
 
 function scrollSettingsTarget(target, block = "center") {
@@ -367,8 +358,9 @@ function openRequestsModal() {
   const botId = botConnectionId(activeAccessBotId, bot) || activeAccessBotId;
   const botName = (botLabel(activeAccessBotId, bot) || "Telegram Bot")
     .replace(new RegExp(`\\s*\\(${String(botId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)\\s*$`), "");
-  requestsTitle.textContent = `Requests to ${botName} (${botId})`;
-  activeRequestsType = activeTargetType;
+  requestsTitle.textContent = "User Request";
+  requestsSubtitle.textContent = `Request to ${botName} (${botId})`;
+  activeRequestsType = "chat";
   requestsQuery = "";
   requestsSearch.value = "";
   requestsHasMore = false;
@@ -392,55 +384,6 @@ function openActiveBotAllowlist(type) {
       type || (activeHomeConversationKind === "channel" ? "channel" : "chat"),
     );
     return;
-  }
-}
-
-function openActiveBotServiceConfiguration() {
-  if (activeHomeBotId) {
-    openBotServiceConfiguration(activeHomeBotId, { highlight: false });
-    return;
-  }
-  openTelegramServiceConfiguration();
-}
-
-function openDeleteConversationChoice(chat) {
-  openRoleChoice({
-    title: "删除对话？",
-    copy: `${chat.target_label || chat.id} 的历史将从 Console 移除，不可恢复，请谨慎操作。`,
-    confirmLabel: "仅删除 Console 对话",
-    extraLabel: "同时，删除 TG Bot 对应的对话",
-    cancelLabel: "取消删除",
-    defaultAction: "cancel",
-    danger: true,
-    onConfirm: async () => {
-      closeRoleChoice();
-      await deleteConversation(chat.id, "local");
-    },
-    onExtra: async () => {
-      closeRoleChoice();
-      await deleteConversation(chat.id, "telegram_recorded");
-    },
-  });
-}
-
-async function deleteConversation(chatId, mode) {
-  try {
-    const response = await fetch("/api/conversations/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, mode }),
-    });
-    const result = await response.json();
-    if (!response.ok || !result.ok) {
-      throw new Error(result.error || `HTTP ${response.status}`);
-    }
-    state = result.payload;
-    activeChatId = null;
-    render();
-  } catch (error) {
-    updateStatus("error", `delete failed · ${formatNow()}`);
-    window.alert(error.message || "Delete failed.");
-    console.error(error);
   }
 }
 

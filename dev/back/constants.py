@@ -20,6 +20,7 @@ ASSISTANT_OFFLINE_TEXT = "Your personal assistant is offline."
 ACCESS_CAPABILITIES = {
     "public": {"message"},
     "admin": {"message", "codex"},
+    "member": {"message", "codex"},
     "owner": {"message", "codex", "admin"},
     # Legacy role names kept readable during migration and old conversation history.
     "allowed_user": {"message", "codex"},

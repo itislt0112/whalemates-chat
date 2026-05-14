@@ -40,7 +40,7 @@
 
 .modal-title-stack {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -398,6 +398,66 @@
   gap: 14px;
 }
 
+.bot-detail-title-stack {
+  gap: 6px;
+}
+
+.bot-detail-title-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  min-width: 0;
+}
+
+.bot-detail-modal-meta {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-soft) 54%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--brand-purple) 18%, var(--line));
+  border-radius: 10px;
+  color: color-mix(in srgb, var(--muted) 88%, var(--ink));
+  display: flex;
+  font-size: 12px;
+  font-weight: 780;
+  gap: 6px;
+  line-height: 1.2;
+  min-width: 0;
+  padding: 4px 7px 4px 4px;
+}
+
+.bot-detail-meta-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--whale-blue) 18%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--whale-blue) 54%, white);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 0 0 3px color-mix(in srgb, var(--whale-blue) 20%, transparent);
+  color: color-mix(in srgb, var(--brand-purple) 72%, var(--whale-blue));
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 19px;
+  justify-content: center;
+  width: 19px;
+}
+
+.bot-detail-meta-icon svg {
+  fill: none;
+  height: 13px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+  width: 13px;
+}
+
+.bot-detail-modal-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  margin: 0;
+}
+
 .service-manage-modal .service-card {
   margin: 0;
 }
@@ -499,6 +559,15 @@
   justify-content: space-between;
 }
 
+.requests-head .choice-title,
+.requests-head .choice-copy {
+  text-align: left;
+}
+
+.requests-subtitle {
+  margin-top: 3px;
+}
+
 .requests-toolbar {
   display: grid;
   gap: 9px;
@@ -524,13 +593,39 @@
   padding: 9px 10px;
 }
 
+.detail-requests-action-row {
+  margin-bottom: 2px;
+}
+
 .requests-filter-row .target-tab-group {
   flex: 0 0 auto;
 }
 
 .requests-filter-row .target-tab {
+  align-items: center;
   border-radius: 8px;
+  display: inline-flex;
+  gap: 6px;
   padding: 7px 10px;
+}
+
+.request-tab-count {
+  align-items: center;
+  background: color-mix(in srgb, var(--brand-yellow) 18%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--brand-yellow) 72%, var(--line));
+  border-radius: 999px;
+  color: var(--text);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 750;
+  justify-content: center;
+  line-height: 1;
+  min-width: 17px;
+  padding: 2px 5px;
+}
+
+.request-tab-count[hidden] {
+  display: none;
 }
 
 .requests-search-input {

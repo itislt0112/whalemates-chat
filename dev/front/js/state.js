@@ -1,4 +1,3 @@
-const chatList = document.querySelector("#chatList");
 const shell = document.querySelector(".shell");
 const shellResizer = document.querySelector("#shellResizer");
 const mobileSidebarToggle = document.querySelector("#mobileSidebarToggle");
@@ -36,6 +35,7 @@ const homeConversationFilterMenu = document.querySelector("#homeConversationFilt
 const homeConversationFilterTabs = [...document.querySelectorAll("[data-home-conversation-kind]")];
 const homeConversationAllCount = document.querySelector("#homeConversationAllCount");
 const homeConversationChatCount = document.querySelector("#homeConversationChatCount");
+const homeConversationGroupCount = document.querySelector("#homeConversationGroupCount");
 const homeConversationChannelCount = document.querySelector("#homeConversationChannelCount");
 const homeConversationMenuOptions = document.querySelector("#homeConversationMenuOptions");
 const homeConversationManageButton = document.querySelector("#homeConversationManageButton");
@@ -52,8 +52,6 @@ const manualComposerMediaButton = document.querySelector("#manualComposerMediaBu
 const manualComposerFileButton = document.querySelector("#manualComposerFileButton");
 const manualComposerVoiceButton = document.querySelector("#manualComposerVoiceButton");
 const manualComposerSend = document.querySelector("#manualComposerSend");
-const activeTitle = document.querySelector("#activeTitle");
-const activeMeta = document.querySelector("#activeMeta");
 const chatHeaderIdentity = document.querySelector("#chatHeaderIdentity");
 const chatHeaderActions = document.querySelector("#chatHeaderActions");
 const themeToggleButton = document.querySelector("#themeToggleButton");
@@ -154,12 +152,18 @@ const larkManageValidateToken = document.querySelector("#larkManageValidateToken
 const larkManageFeedback = document.querySelector("#larkManageFeedback");
 const telegramBotDetailModal = document.querySelector("#telegramBotDetailModal");
 const telegramBotDetailModalTitle = document.querySelector("#telegramBotDetailModalTitle");
+const telegramBotDetailModalMeta = document.querySelector("#telegramBotDetailModalMeta");
+const telegramBotDetailModalSubtitle = document.querySelector("#telegramBotDetailModalSubtitle");
 const telegramBotDetailModalClose = document.querySelector("#telegramBotDetailModalClose");
 const telegramDetailBotList = document.querySelector("#telegramDetailBotList");
 const telegramDetailAccessCard = document.querySelector("#telegramDetailAccessCard");
 const telegramDetailAccessPanel = document.querySelector("#telegramDetailAccessPanel");
 const telegramDetailChatTargetTab = document.querySelector("#telegramDetailChatTargetTab");
+const telegramDetailGroupTargetTab = document.querySelector("#telegramDetailGroupTargetTab");
 const telegramDetailChannelTargetTab = document.querySelector("#telegramDetailChannelTargetTab");
+const telegramDetailRequestsTargetTab = document.createElement("button");
+telegramDetailRequestsTargetTab.className = "target-tab";
+telegramDetailRequestsTargetTab.type = "button";
 const telegramDetailRequestsButton = document.querySelector("#telegramDetailRequestsButton");
 const telegramDetailAllowedTargetForm = document.querySelector("#telegramDetailAllowedTargetForm");
 const telegramDetailAllowedTargetInput = document.querySelector("#telegramDetailAllowedTargetInput");
@@ -173,11 +177,13 @@ const allowedTargets = document.querySelector("#allowedTargets");
 const allowedTargetForm = document.querySelector("#allowedTargetForm");
 const allowedTargetInput = document.querySelector("#allowedTargetInput");
 const chatTargetTab = document.querySelector("#chatTargetTab");
+const groupTargetTab = document.querySelector("#groupTargetTab");
 const channelTargetTab = document.querySelector("#channelTargetTab");
 const publicAccessToggle = document.querySelector("#publicAccessToggle");
 const requestsButton = document.querySelector("#requestsButton");
 const requestsModal = document.querySelector("#requestsModal");
 const requestsTitle = document.querySelector("#requestsTitle");
+const requestsSubtitle = document.querySelector("#requestsSubtitle");
 const requestsClose = document.querySelector("#requestsClose");
 const requestsList = document.querySelector("#requestsList");
 const requestsToolbar = document.querySelector("#requestsToolbar");
@@ -191,13 +197,18 @@ const requestsAllowSelected = document.querySelector("#requestsAllowSelected");
 const requestsRejectSelected = document.querySelector("#requestsRejectSelected");
 const requestsFeedback = document.querySelector("#requestsFeedback");
 const requestsLoadMore = document.querySelector("#requestsLoadMore");
-const requestTypeTabs = [...document.querySelectorAll("[data-requests-type]")];
 const settingsFeedback = document.querySelector("#settingsFeedback");
 const serviceConfigFeedback = document.querySelector("#serviceConfigFeedback");
 
 let state = { chats: [], messages: {}, services: {}, settings: {} };
 let draftAllowedTargets = null;
 let activeTargetType = "chat";
+let targetStatusFilter = "all";
+let targetListeningFilter = "all";
+let telegramDetailListTab = "approvals";
+let telegramDetailRequestItems = [];
+let telegramDetailRequestsLoading = false;
+let telegramDetailRequestsLoadedFor = "";
 let activeRequestsType = "chat";
 let requestsPage = 1;
 let requestsHasMore = false;
@@ -240,6 +251,7 @@ let accessBotFilter = "";
 let activeModelRouteDropdown = "";
 let modelRouteFilters = {};
 let telegramDetailFocus = "";
+let pendingGroupChannelHighlight = null;
 let activeHomeServiceId = (() => {
   try {
     return localStorage.getItem("whalematesActiveHomeService") || "telegram";
@@ -252,7 +264,7 @@ let homeBotMenuOpen = false;
 let collapsedHomeBotActionMenuIds = new Set();
 let homeBotFilter = "";
 let activeHomeBotKind = "all";
-let activeHomeConversationKind = "all";
+let activeHomeConversationKind = "chat";
 let homeConversationAccessFilter = "enabled";
 let homeConversationGroupsOpen = { chat: true, channel: true };
 let homeConversationFilterMenuOpen = false;
@@ -268,14 +280,111 @@ let isLoading = false;
 let socket = null;
 let reconnectTimer = null;
 let dashboardRecoveryTimer = null;
+let conversationRefreshTimer = null;
 let dashboardReloading = false;
 let lastRenderedChatId = null;
 let lastRenderedTurnCount = 0;
+let lastRenderedMessageSignature = "";
+let lastRenderedMessageUiSignature = "";
 let pendingRoleChoice = null;
 let pendingExtraChoice = null;
 let pendingCancelChoice = null;
 let messageSelectionMode = false;
 let selectedMessageIndexes = new Set();
+
+const groupChannelSeenTargetsStorageKey = "whalematesGroupChannelSeenTargets:v1";
+const groupChannelSeenBootstrapStorageKey = "whalematesGroupChannelSeenBootstrap:v1";
+let groupChannelSeenTargetKeys = (() => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(groupChannelSeenTargetsStorageKey) || "[]"));
+  } catch (error) {
+    return new Set();
+  }
+})();
+
+function saveGroupChannelSeenTargetKeys() {
+  try {
+    localStorage.setItem(groupChannelSeenTargetsStorageKey, JSON.stringify([...groupChannelSeenTargetKeys]));
+  } catch (error) {
+    // Local notification state is best-effort.
+  }
+}
+
+function groupChannelTargetSeenKey(botId, type, target) {
+  return JSON.stringify([
+    String(botId || ""),
+    String(type || ""),
+    String(target?.id || ""),
+    String(target?.added_at || ""),
+  ]);
+}
+
+function isRawGroupTargetRecord(record) {
+  return ["group", "supergroup"].includes(String(record?.chat_type || "").trim().toLowerCase());
+}
+
+function groupChannelTargetsForBot(botId, type = "all") {
+  const bot = state.settings?.services?.telegram?.bots?.[botId];
+  if (!bot) return [];
+  const items = [];
+  if (type === "all" || type === "group") {
+    for (const record of bot.allowed?.chats || []) {
+      if (record && typeof record === "object" && isRawGroupTargetRecord(record)) {
+        items.push({ type: "group", target: record });
+      }
+    }
+  }
+  if (type === "all" || type === "channel") {
+    for (const record of bot.allowed?.channels || []) {
+      if (record && typeof record === "object") {
+        items.push({ type: "channel", target: record });
+      }
+    }
+  }
+  return items.filter((item) => item.target?.id);
+}
+
+function newGroupChannelTargets(botId, type = "all") {
+  return groupChannelTargetsForBot(botId, type).filter(
+    (item) => !groupChannelSeenTargetKeys.has(groupChannelTargetSeenKey(botId, item.type, item.target)),
+  );
+}
+
+function hasNewGroupChannelTargets(botId, type = "all") {
+  return newGroupChannelTargets(botId, type).length > 0;
+}
+
+function isNewGroupChannelTarget(botId, type, target) {
+  return !groupChannelSeenTargetKeys.has(groupChannelTargetSeenKey(botId, type, target));
+}
+
+function markGroupChannelTargetsSeen(botId, type = "all") {
+  let changed = false;
+  for (const item of groupChannelTargetsForBot(botId, type)) {
+    const key = groupChannelTargetSeenKey(botId, item.type, item.target);
+    if (groupChannelSeenTargetKeys.has(key)) continue;
+    groupChannelSeenTargetKeys.add(key);
+    changed = true;
+  }
+  if (changed) saveGroupChannelSeenTargetKeys();
+  return changed;
+}
+
+function bootstrapGroupChannelSeenTargets() {
+  try {
+    if (localStorage.getItem(groupChannelSeenBootstrapStorageKey)) return;
+  } catch (error) {
+    return;
+  }
+  for (const botId of Object.keys(state.settings?.services?.telegram?.bots || {})) {
+    markGroupChannelTargetsSeen(botId);
+  }
+  try {
+    localStorage.setItem(groupChannelSeenBootstrapStorageKey, "1");
+  } catch (error) {
+    // Ignore local notification persistence failures.
+  }
+}
 
 function formatTime(value) {
   if (!value) return "";
@@ -367,11 +476,6 @@ function modelRouteModeSettings(route = null) {
   return state.settings?.models?.[provider]?.modes?.[mode] || {};
 }
 
-function modelRouteHasRuntimeFailure(route = null) {
-  const failure = modelRouteModeSettings(route).last_runtime_failure;
-  return Boolean(failure?.reason || failure?.message);
-}
-
 function modelRouteHasIssue(route = null) {
   return Boolean(route && !modelRouteIsEnabled(route));
 }
@@ -410,18 +514,115 @@ function botDisplayName(botId, bot) {
 
 function statusLabel(status) {
   const normalized = String(status || "public").trim().toLowerCase();
-  if (normalized === "owner") return "bot owner";
-  if (normalized === "admin") return "bot admin";
+  if (normalized === "channel_admin") return "admin";
+  if (normalized === "channel_member") return "member";
+  if (normalized === "channel_left") return "left";
+  if (normalized === "owner") return "owner";
+  if (normalized === "admin") return "admin";
   if (normalized === "public") return "public";
   return normalized || "public";
 }
 
-function botContextLabel(chat) {
+function conversationKindLabel(chat) {
+  const kind = homeConversationKind(chat);
+  if (kind === "channel") return "CHANNEL";
+  if (kind === "group") return "GROUP";
+  return "CHAT";
+}
+
+function conversationIdentityName(chat) {
+  const kind = homeConversationKind(chat);
+  const label = String(chat?.target_label || chat?.title || "").trim();
+  if (kind === "chat") {
+    const username = String(chat?.title || label || "").match(/@[\w\d_]+/)?.[0];
+    if (username) return username;
+    const uid = String(chat?.uid || "").trim();
+    return uid ? `@${uid}` : label.replace(/^Chat with\s+/i, "") || "unknown";
+  }
+  if (kind === "channel") {
+    return label.replace(/^Channel in\s+/i, "").replace(/^Channel\s+/i, "") || chat?.title || "unknown";
+  }
+  return label.replace(/^Group in\s+/i, "").replace(/^Chat with\s+/i, "") || chat?.title || "unknown";
+}
+
+function conversationIdentityId(chat) {
+  return String(chat?.target_id || chat?.uid || chat?.id || "").trim();
+}
+
+function conversationDisplayTitle(chat) {
+  return `${conversationIdentityName(chat)} · ${conversationIdentityId(chat)}`.trim();
+}
+
+function createConversationRoleBadge(chat) {
+  const badge = document.createElement("span");
+  badge.className = "status-pill conversation-role-badge";
+  const role = statusLabel(chat?.user_status || "public");
+  badge.textContent = role === "owner" || role === "admin" ? `bot ${role}` : "public";
+  return badge;
+}
+
+function createConversationTitleFragment(chat) {
+  const fragment = document.createDocumentFragment();
+  const title = document.createElement("span");
+  title.className = "conversation-display-title";
+  title.textContent = conversationDisplayTitle(chat);
+  title.title = conversationDisplayTitle(chat);
+  fragment.append(title);
+  if (homeConversationKind(chat) === "chat") {
+    fragment.append(createConversationRoleBadge(chat));
+  }
+  return fragment;
+}
+
+function botContextName(chat) {
   const botId = chat?.bot_id && chat.bot_id !== "default" ? chat.bot_id : activeHomeBotId;
   const bot = homeBots(chat?.service_id || activeHomeServiceId).find(([id]) => id === botId)?.[1];
-  const label = chat?.bot_label || botLabel(botId, bot);
-  const connectionId = botConnectionId(botId, bot);
-  return botId ? `${label} (${connectionId})` : "";
+  return chat?.bot_label || botLabel(botId, bot);
+}
+
+function createConversationBotMeta(chat) {
+  const row = document.createElement("span");
+  row.className = "conversation-bot-meta";
+
+  const icon = document.createElement("span");
+  icon.className = "conversation-bot-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="5" y="7" width="14" height="12" rx="4"></rect>
+      <path d="M12 7V4"></path>
+      <path d="M9 12h.01"></path>
+      <path d="M15 12h.01"></path>
+    </svg>
+  `;
+  const name = document.createElement("span");
+  name.className = "conversation-bot-name";
+  const roleText = homeConversationKind(chat) !== "chat"
+    ? statusLabel(chat?.bot_status_group_channel || "member")
+    : "";
+  name.textContent = roleText ? `${botContextName(chat)} (${roleText})` : botContextName(chat);
+  if (homeConversationKind(chat) !== "chat") {
+    name.title = name.textContent;
+  }
+
+  const time = document.createElement("span");
+  time.className = "conversation-bot-time";
+  const loadedMessages = Number(chat?.turn_count || 0);
+  const messageText = `${loadedMessages} message${loadedMessages === 1 ? "" : "s"}`;
+  time.textContent = `· ${messageText} · ${formatTime(chat?.updated_at)}`;
+
+  row.append(icon, name, time);
+  return row;
+}
+
+function conversationAvatarUrl(chat) {
+  const botId = chat?.bot_id || activeHomeBotId || "default";
+  if (homeConversationKind(chat) === "chat") {
+    const userId = String(chat?.uid || chat?.target_id || chat?.id || "").trim();
+    return userId ? `/api/avatars/telegram?user_id=${encodeURIComponent(userId)}&bot_id=${encodeURIComponent(botId)}` : "";
+  }
+  const chatId = String(chat?.target_id || chat?.id || "").trim();
+  return chatId ? `/api/avatars/telegram?chat_id=${encodeURIComponent(chatId)}&bot_id=${encodeURIComponent(botId)}` : "";
 }
 
 function botContextState(chat) {
@@ -449,19 +650,6 @@ function createBotStateDot(displayState) {
   return dot;
 }
 
-function createBotCountPill(botId, serviceId = activeHomeServiceId) {
-  const pill = document.createElement("span");
-  pill.className = "bot-count-pill";
-  pill.textContent = botConversationCount(botId, serviceId);
-  pill.title = "conversations";
-  pill.setAttribute("aria-label", `${pill.textContent} conversations`);
-  return pill;
-}
-
-function compactIdLabel(value) {
-  return value ? `id-${value}` : "";
-}
-
 function botFilterKind(botId, bot) {
   const displayState = workerDisplayState(botId, bot);
   if (!bot?.enabled) return "disabled";
@@ -487,7 +675,13 @@ function allowedIdsForBot(bot) {
 
 function enabledAllowedCount(bot, type) {
   const key = type === "channel" ? "channels" : "chats";
-  return (bot?.allowed?.[key] || []).filter((record) => record?.enabled !== false).length;
+  return (bot?.allowed?.[key] || []).filter((record) => {
+    if (record?.enabled === false) return false;
+    const isGroup = isGroupTargetRecord(record);
+    if (type === "group") return isGroup;
+    if (type === "chat") return !isGroup;
+    return true;
+  }).length;
 }
 
 function targetRecordForChat(chat, bot = null) {
@@ -496,7 +690,8 @@ function targetRecordForChat(chat, bot = null) {
     ...(activeBot?.allowed?.chats || []),
     ...(activeBot?.allowed?.channels || []),
   ];
-  return records.find((record) => String(record?.id) === String(chat?.id)) || null;
+  const targetId = String(chat?.target_id || chat?.uid || chat?.id || "");
+  return records.find((record) => String(record?.id) === targetId) || null;
 }
 
 function conversationAccessKind(chat, bot = null) {
@@ -531,9 +726,19 @@ function chatBelongsToBot(chat, botId, serviceIdOverride = activeHomeServiceId) 
 }
 
 function homeConversationKind(chat) {
+  const chatType = String(chat?.chat_type || "").trim();
+  if (chatType === "group" || chatType === "supergroup") return "group";
+  const targetType = String(chat?.target_type || "").trim();
+  if (targetType === "channel") return "channel";
   const label = String(chat?.target_label || "").toLowerCase();
   if (label.startsWith("channel")) return "channel";
+  if (label.startsWith("group")) return "group";
   return "chat";
+}
+
+function isGroupTargetRecord(record) {
+  const chatType = String(record?.chat_type || "").trim();
+  return chatType === "group" || chatType === "supergroup";
 }
 
 function normalizeSearchText(value) {
@@ -554,8 +759,22 @@ function homeConversationSearchText(chat) {
     targetId,
     `id-${targetId}`,
     chat.user_status,
+    chat.bot_status_group_channel,
     formatTime(chat.updated_at),
   ].join(" "));
+}
+
+function latestHomeConversationKind(chats) {
+  const latest = [...(chats || [])]
+    .filter((chat) => ["chat", "group", "channel"].includes(homeConversationKind(chat)))
+    .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))[0];
+  return latest ? homeConversationKind(latest) : "chat";
+}
+
+function ensureHomeConversationKind(chats) {
+  if (!["chat", "group", "channel"].includes(activeHomeConversationKind)) {
+    activeHomeConversationKind = latestHomeConversationKind(chats);
+  }
 }
 
 function renderHomeConversationFilters(chats) {
@@ -568,23 +787,23 @@ function renderHomeConversationFilters(chats) {
   }
 
   const chatCount = chats.filter((chat) => homeConversationKind(chat) === "chat").length;
+  const groupCount = chats.filter((chat) => homeConversationKind(chat) === "group").length;
   const channelCount = chats.filter((chat) => homeConversationKind(chat) === "channel").length;
   if (homeConversationAllCount) homeConversationAllCount.textContent = chats.length;
   if (homeConversationChatCount) homeConversationChatCount.textContent = chatCount;
+  if (homeConversationGroupCount) homeConversationGroupCount.textContent = groupCount;
   if (homeConversationChannelCount) homeConversationChannelCount.textContent = channelCount;
   const activeChat = state.chats.find((chat) => chat.id === activeChatId);
   if (activeChat) {
-    const chatId = activeChat.uid || activeChat.id || "";
-    const titleParts = [activeChat.target_label || `Chat: ${activeChat.id}`, chatId].filter(Boolean);
     const turns = state.messages?.[activeChat.id] || [];
     const turnCount = activeChat.turn_count || turns.length || 0;
     homeConversationAvatar.hidden = false;
     homeConversationAvatar.className = `conversation-trigger-avatar ${conversationAvailabilityKind(activeChat)}`;
     homeConversationAvatar.style.backgroundImage = "";
     homeConversationAvatarText.textContent = avatarInitialForChat(activeChat);
-    if (activeChat.uid) {
+    const avatarUrl = conversationAvatarUrl(activeChat);
+    if (avatarUrl) {
       const avatar = new Image();
-      const botId = activeChat.bot_id || activeHomeBotId || "default";
       avatar.onload = () => {
         if (activeChatId === activeChat.id) {
           homeConversationAvatar.classList.add("has-image");
@@ -595,12 +814,14 @@ function renderHomeConversationFilters(chats) {
         homeConversationAvatar.classList.remove("has-image");
         homeConversationAvatar.style.backgroundImage = "";
       };
-      avatar.src = `/api/avatars/telegram?user_id=${encodeURIComponent(activeChat.uid)}&bot_id=${encodeURIComponent(botId)}`;
+      avatar.src = avatarUrl;
     }
-    homeConversationFilterLabel.textContent = titleParts.join(" · ");
-    homeConversationFilterStatus.hidden = !activeChat.user_status;
-    homeConversationFilterStatus.textContent = statusLabel(activeChat.user_status);
-    homeConversationFilterMeta.textContent = [`${turnCount} messages`, formatTime(activeChat.updated_at)].filter(Boolean).join(" · ");
+    homeConversationFilterLabel.innerHTML = "";
+    homeConversationFilterLabel.append(createConversationTitleFragment(activeChat));
+    homeConversationFilterStatus.hidden = true;
+    homeConversationFilterStatus.textContent = "";
+    homeConversationFilterMeta.innerHTML = "";
+    homeConversationFilterMeta.append(createConversationBotMeta(activeChat));
   } else {
     homeConversationAvatar.hidden = true;
     homeConversationAvatar.classList.remove("has-image");
@@ -695,13 +916,16 @@ function switchHomeBot(botId) {
   homeBotFilter = "";
   homeBotSearch.value = "";
   activeHomeBotKind = "all";
-  activeHomeConversationKind = "all";
+  activeHomeConversationKind = latestHomeConversationKind(
+    state.chats.filter((chat) => chatBelongsToBot(chat, botId)),
+  );
   homeConversationAccessFilter = "enabled";
   homeConversationFilterMenuOpen = false;
   homeConversationFilter = "";
   homeConversationSearch.value = "";
   setHomeBotMenu(false);
-  render();
+  renderChatList();
+  renderMessages();
 }
 
 function syncHomeSelection() {

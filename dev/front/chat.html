@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Whalemates</title>
-    <link rel="stylesheet" href="./styles.css?v=20260513-dashboard-recovery" />
+    <link rel="stylesheet" href="./styles.css?v=20260514-architecture-split" />
   </head>
   <body>
     <div class="shell">
@@ -159,11 +159,11 @@
                     <div class="home-conversation-filter-menu" id="homeConversationFilterMenu" role="listbox" hidden>
                       <input class="home-conversation-search" id="homeConversationSearch" autocomplete="off" placeholder="Search conversations, IDs, status..." />
                       <div class="home-conversation-filter-tabs">
-                        <button class="home-conversation-filter active" type="button" data-home-conversation-kind="all">
-                          <span>All</span>
-                        </button>
-                        <button class="home-conversation-filter" type="button" data-home-conversation-kind="chat">
+                        <button class="home-conversation-filter active" type="button" data-home-conversation-kind="chat">
                           <span>Chats</span>
+                        </button>
+                        <button class="home-conversation-filter" type="button" data-home-conversation-kind="group">
+                          <span>Groups</span>
                         </button>
                         <button class="home-conversation-filter" type="button" data-home-conversation-kind="channel">
                           <span>Channels</span>
@@ -175,18 +175,13 @@
                 </div>
               </div>
             </div>
-            <div class="legacy-active-title" hidden>
-              <strong id="activeTitle">No conversation selected</strong>
-              <span id="activeMeta">Waiting for Telegram messages</span>
-            </div>
           </div>
           <div class="chat-header-actions" id="chatHeaderActions"></div>
         </div>
-        <div class="chat-list" id="chatList" hidden></div>
         <section class="messages" id="messages"></section>
+        <div class="manual-composer-hint" id="manualComposerHint">Select a conversation to send as bot.</div>
         <section class="manual-composer" id="manualComposer" aria-label="Send message as bot">
           <div class="manual-composer-drop" id="manualComposerDrop">
-            <div class="manual-composer-hint" id="manualComposerHint">Select a conversation to send as bot.</div>
             <div class="manual-composer-files" id="manualComposerFiles" hidden></div>
             <div class="manual-composer-main">
               <div class="manual-composer-input-wrap">
@@ -276,6 +271,7 @@
                   <div class="target-tabs" aria-label="Telegram target type">
                     <div class="target-tab-group">
                       <button class="target-tab active" id="chatTargetTab" type="button">User</button>
+                      <button class="target-tab" id="groupTargetTab" type="button">Group</button>
                       <button class="target-tab" id="channelTargetTab" type="button">Channel</button>
                     </div>
                     <div class="access-control-actions">
@@ -531,7 +527,13 @@
     <div class="modal-backdrop service-manage-backdrop" id="telegramBotDetailModal" hidden>
       <section class="settings-modal bot-detail-manage-modal" role="dialog" aria-modal="true" aria-labelledby="telegramBotDetailModalTitle">
         <header>
-          <h2 id="telegramBotDetailModalTitle">Bot Settings</h2>
+          <div class="modal-title-stack bot-detail-title-stack">
+            <div class="bot-detail-title-row">
+              <h2 id="telegramBotDetailModalTitle">Bot Settings</h2>
+              <div class="bot-detail-modal-meta" id="telegramBotDetailModalMeta" hidden></div>
+            </div>
+            <p class="bot-detail-modal-subtitle" id="telegramBotDetailModalSubtitle" hidden></p>
+          </div>
           <button class="settings-close" id="telegramBotDetailModalClose" type="button" aria-label="Close Bot Settings">×</button>
         </header>
         <div class="service-manage-body bot-detail-manage-body">
@@ -543,7 +545,7 @@
             <div class="service-section-title">
               <div>
                 <h4>Approval List</h4>
-                <p class="service-subcopy">Manage this bot's allowed chats and channels.</p>
+                <p class="service-subcopy">Manage this bot's allowed users, groups, and channels.</p>
               </div>
               <button class="target-action secondary compact" id="telegramDetailRequestsButton" type="button">Requests</button>
             </div>
@@ -551,6 +553,7 @@
               <div class="target-tabs">
                 <div class="target-tab-group">
                   <button class="target-tab active" id="telegramDetailChatTargetTab" type="button">User</button>
+                  <button class="target-tab" id="telegramDetailGroupTargetTab" type="button">Group</button>
                   <button class="target-tab" id="telegramDetailChannelTargetTab" type="button">Channel</button>
                 </div>
               </div>
@@ -667,16 +670,13 @@
       <section class="choice-modal requests-modal" role="dialog" aria-modal="true" aria-labelledby="requestsTitle">
         <div class="requests-head">
           <div>
-            <div class="choice-title" id="requestsTitle">Requests</div>
+            <div class="choice-title" id="requestsTitle">User Request</div>
+            <div class="choice-copy requests-subtitle" id="requestsSubtitle">Request to Telegram Bot</div>
           </div>
           <button class="settings-close" id="requestsClose" type="button" aria-label="Close requests">×</button>
         </div>
         <div class="requests-toolbar" id="requestsToolbar">
           <div class="requests-filter-row">
-            <div class="target-tab-group">
-              <button class="target-tab active" data-requests-type="chat" type="button">Chat</button>
-              <button class="target-tab" data-requests-type="channel" type="button">Channel</button>
-            </div>
             <input class="target-input requests-search-input" id="requestsSearch" autocomplete="off" placeholder="Search by name or ID" hidden />
           </div>
           <div class="requests-action-row">
@@ -700,12 +700,16 @@
       </section>
     </div>
 
-    <script src="./js/state.js?v=20260513-dashboard-recovery"></script>
-    <script src="./js/home.js?v=20260513-dashboard-recovery"></script>
-    <script src="./js/messages.js?v=20260513-dashboard-recovery"></script>
-    <script src="./js/settings.js?v=20260513-dashboard-recovery"></script>
-    <script src="./js/modals.js?v=20260513-dashboard-recovery"></script>
-    <script src="./js/api.js?v=20260513-dashboard-recovery"></script>
-    <script src="./js/transport.js?v=20260513-dashboard-recovery"></script>
+    <script src="./js/state.js?v=20260514-dead-code-cleanup"></script>
+    <script src="./js/home.js?v=20260514-dead-code-cleanup"></script>
+    <script src="./js/messages.js?v=20260514-dead-code-cleanup"></script>
+    <script src="./js/telegram-message-config.js?v=20260514-architecture-split"></script>
+    <script src="./js/model-settings-ui.js?v=20260514-architecture-split"></script>
+    <script src="./js/telegram-access-ui.js?v=20260514-architecture-split"></script>
+    <script src="./js/bot-workers-ui.js?v=20260514-architecture-split"></script>
+    <script src="./js/settings.js?v=20260514-architecture-split"></script>
+    <script src="./js/modals.js?v=20260514-dead-code-cleanup"></script>
+    <script src="./js/api.js?v=20260514-dead-code-cleanup"></script>
+    <script src="./js/transport.js?v=20260514-dead-code-cleanup"></script>
   </body>
 </html>
